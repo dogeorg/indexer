@@ -7,7 +7,6 @@ import (
 	"log"
 	"time"
 
-	"github.com/dogeorg/doge"
 	"github.com/dogeorg/dogewalker/walker"
 	"github.com/dogeorg/governor"
 	"github.com/dogeorg/indexer/spec"
@@ -25,18 +24,17 @@ type Indexer struct {
 	_db        spec.Store
 	db         spec.Store
 	blocks     chan walker.BlockOrUndo
-	chain      *doge.ChainParams
 	scriptMask ScriptMask
 }
 
 /*
  * NewIndexer creates an Indexer service that tracks the ChainState.
  *
- * `onlyScriptType` is an optional ScriptType to index (if this is 0,
- * all standard spendable UTXOs are indexed, including multisig.
+ * `blocks` is the channel from `WalkTheDoge`
+ * `scriptMask` is a bitmask of the ScriptMask to index (e.g. MaskPayTo)
  */
-func NewIndexer(db spec.Store, blocks chan walker.BlockOrUndo, chain *doge.ChainParams, scriptMask ScriptMask) governor.Service {
-	return &Indexer{_db: db, blocks: blocks, chain: chain, scriptMask: scriptMask}
+func NewIndexer(db spec.Store, blocks chan walker.BlockOrUndo, scriptMask ScriptMask) governor.Service {
+	return &Indexer{_db: db, blocks: blocks, scriptMask: scriptMask}
 }
 
 func (i *Indexer) Run() {
@@ -63,7 +61,7 @@ func (i *Indexer) Run() {
 				// which theoretically could be a problem on a 32-bit system
 				for vout, out := range tx.VOut {
 					if out.Value >= DUST_LIMIT {
-						typ, compact := ClassifyAndCompactScript(out.Script, i.chain, i.scriptMask)
+						typ, compact := ClassifyAndCompactScript(out.Script, i.scriptMask)
 						if typ != ScriptNone {
 							createUTXOs = append(createUTXOs, spec.UTXO{
 								Key:    spec.OutPoint(txID, uint32(vout)),

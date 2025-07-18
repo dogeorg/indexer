@@ -40,7 +40,7 @@ const (
 	MaskWitness     ScriptMask = MaskP2PKHW | MaskP2SHW          // segwit scripts
 )
 
-func ClassifyAndCompactScript(script []byte, chain *doge.ChainParams, mask ScriptMask) (ScriptType, CompactScript) {
+func ClassifyAndCompactScript(script []byte, mask ScriptMask) (ScriptType, CompactScript) {
 	L := len(script)
 	// OP_RETURN
 	if L > 0 && script[0] == doge.OP_RETURN && L <= MAX_OP_RETURN_RELAY {
@@ -85,7 +85,7 @@ func ClassifyAndCompactScript(script []byte, chain *doge.ChainParams, mask Scrip
 	if L == 23 && script[0] == doge.OP_HASH160 && script[1] == 20 && script[22] == doge.OP_EQUAL {
 		if (mask & MaskP2SH) != 0 {
 			// 20 bytes Script Hash
-			compact := make([]byte, 1+65)
+			compact := make([]byte, 20)
 			copy(compact[0:20], script[2:22]) // 20 bytes
 			return ScriptP2SH, compact
 		}

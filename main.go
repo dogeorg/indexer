@@ -74,7 +74,7 @@ func main() {
 	gov.Add("Walk", walkSvc)
 
 	// Index the chain.
-	gov.Add("Index", index.NewIndexer(db, blocks, chain, scriptMask))
+	gov.Add("Index", index.NewIndexer(db, blocks, scriptMask))
 
 	// run services until interrupted.
 	gov.Start()

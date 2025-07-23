@@ -2,11 +2,10 @@ package index
 
 import (
 	"bytes"
-	"encoding/hex"
-	"fmt"
 	"log"
 	"time"
 
+	"github.com/dogeorg/doge"
 	"github.com/dogeorg/dogewalker/walker"
 	"github.com/dogeorg/governor"
 	"github.com/dogeorg/indexer/spec"
@@ -21,20 +20,19 @@ var Zeroes = [32]byte{}
 
 type Indexer struct {
 	governor.ServiceCtx
-	_db        spec.Store
-	db         spec.Store
-	blocks     chan walker.BlockOrUndo
-	scriptMask ScriptMask
+	_db    spec.Store
+	db     spec.Store
+	blocks chan walker.BlockOrUndo
 }
 
 /*
  * NewIndexer creates an Indexer service that tracks the ChainState.
  *
- * `blocks` is the channel from `WalkTheDoge`
- * `scriptMask` is a bitmask of the ScriptMask to index (e.g. MaskPayTo)
+ * `onlyScriptType` is an optional ScriptType to index (if this is 0,
+ * all standard spendable UTXOs are indexed, including multisig.
  */
-func NewIndexer(db spec.Store, blocks chan walker.BlockOrUndo, scriptMask ScriptMask) governor.Service {
-	return &Indexer{_db: db, blocks: blocks, scriptMask: scriptMask}
+func NewIndexer(db spec.Store, blocks chan walker.BlockOrUndo) governor.Service {
+	return &Indexer{_db: db, blocks: blocks}
 }
 
 func (i *Indexer) Run() {
@@ -47,10 +45,7 @@ func (i *Indexer) Run() {
 			removeUTXOs := []spec.OutPointKey{}
 			createUTXOs := []spec.UTXO{}
 			for _, tx := range cmd.Block.Block.Tx {
-				txID, err := hex.DecodeString(tx.TxID)
-				if err != nil {
-					panic(fmt.Errorf("[Indexer] cannot hex-decode (encoded by WalkTheDoge): %v", err))
-				}
+				txID := tx.TxID
 				for _, in := range tx.VIn {
 					// Ignore CoinBase input (all zeroes)
 					if !bytes.Equal(in.TxID, Zeroes[:]) {
@@ -61,12 +56,12 @@ func (i *Indexer) Run() {
 				// which theoretically could be a problem on a 32-bit system
 				for vout, out := range tx.VOut {
 					if out.Value >= DUST_LIMIT {
-						typ, compact := ClassifyAndCompactScript(out.Script, i.scriptMask)
-						if typ != ScriptNone {
+						typ, compact := doge.ClassifyScript(out.Script)
+						if typ != doge.ScriptTypeNonStandard && typ != doge.ScriptTypeNullData {
 							createUTXOs = append(createUTXOs, spec.UTXO{
 								Key:    spec.OutPoint(txID, uint32(vout)),
 								Value:  out.Value,
-								Type:   typ,
+								Type:   byte(typ),
 								Script: compact,
 							})
 						}

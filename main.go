@@ -34,7 +34,6 @@ func main() {
 		zmqPort: 28332,
 	}
 	chain := &doge.DogeMainNetChain
-	scriptMask := index.MaskPayTo // only index "pay to" scripts
 
 	webPort := os.Getenv("PORT")
 	if webPort == "" {
@@ -74,7 +73,7 @@ func main() {
 	gov.Add("Walk", walkSvc)
 
 	// Index the chain.
-	gov.Add("Index", index.NewIndexer(db, blocks, scriptMask))
+	gov.Add("Index", index.NewIndexer(db, blocks))
 
 	// run services until interrupted.
 	gov.Start()

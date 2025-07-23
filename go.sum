@@ -10,6 +10,10 @@ github.com/dogeorg/dogewalker v0.0.2 h1:EAVtlS3sehsYSaOo0a5BJUv/itgckyoSQCbqxYpr
 github.com/dogeorg/dogewalker v0.0.2/go.mod h1:yrAKdKjGLzY0Rj/4MY7kjmvOFCDaZXbjlmX5pIaOuMA=
 github.com/dogeorg/governor v1.0.3 h1:ZEzCCGJILWy9l4A53wY2wlFCYzSlQe335ZwvsvI0SXc=
 github.com/dogeorg/governor v1.0.3/go.mod h1:+3y1e0TjLs963Sphk9svnzSXBlFdzQST/VNWzG6N6jw=
+github.com/dogeorg/storelib v0.0.1 h1:eicO800LP0jdYGOf5Az271+tSPFz8SEgF1vMc3y87WA=
+github.com/dogeorg/storelib v0.0.1/go.mod h1:ZWzVdxR4c22RdlG/jEn0QqPRJPeFxGc5OYJ9OMN49Ns=
+github.com/lib/pq v1.10.9 h1:YXG7RB+JIjhP29X+OtkiDnYaXQwpS4JEWq7dtCCRUEw=
+github.com/lib/pq v1.10.9/go.mod h1:AlVN5x4E4T544tWzH6hKfbfQvm3HdbOxrmggDNAPY9o=
 github.com/mattn/go-sqlite3 v1.14.28 h1:ThEiQrnbtumT+QMknw63Befp/ce/nUPgBPMlRFEum7A=
 github.com/mattn/go-sqlite3 v1.14.28/go.mod h1:Uh1q+B4BYcTPb+yiD3kU8Ct7aC0hY9fxUwlHK0RXw+Y=
 github.com/mr-tron/base58 v1.2.0 h1:T/HDJBh4ZCPbU39/+c3rRvE0uKBQlU27+QI8LJ4t64o=

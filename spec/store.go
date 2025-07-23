@@ -1,8 +1,11 @@
 package spec
 
-import "context"
+import (
+	"github.com/dogeorg/storelib"
+)
 
 type StoreTx interface {
+
 	// GetChainPos gets the last block hash we indexed.
 	GetChainPos() string
 
@@ -20,14 +23,6 @@ type StoreTx interface {
 }
 
 type Store interface {
-	StoreTx
-
-	// Transact performs a transactional update
-	Transact(fn func(tx StoreTx) error) error
-
-	// WithCtx returns the same Store interface, bound to a specific cancellable Context
-	WithCtx(ctx context.Context) Store
-
-	// Close closes the database.
-	Close()
+	storelib.StoreAPI[Store, StoreTx] // include the Base Store API
+	StoreTx                           // include all the StoreTx methods
 }

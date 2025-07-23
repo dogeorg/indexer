@@ -47,7 +47,7 @@ func main() {
 	gov := governor.New().CatchSignals().Restart(1 * time.Second)
 
 	// create database store
-	db, err := store.NewPGStore("index.db", context.Background())
+	db, err := store.NewIndexStore("index.db", context.Background())
 	if err != nil {
 		log.Fatalf("cannot open database: %v", err)
 	}

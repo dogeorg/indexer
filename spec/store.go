@@ -6,20 +6,26 @@ import (
 
 type StoreTx interface {
 
-	// GetChainPos gets the last block hash we indexed.
-	GetChainPos() string
+	// GetResumePoint gets the hash to resume from.
+	GetResumePoint() (hash []byte, err error)
+
+	// SetResumePoint sets the hash to resume from.
+	SetResumePoint(hash []byte) error
 
 	// RemoveUTXOs marks UTXOs as spent at `height`
-	RemoveUTXOs(removeUTXOs []OutPointKey, height int64)
+	RemoveUTXOs(removeUTXOs []OutPointKey, height int64) error
 
 	// CreateUTXOs inserts new UTXOs at `height`
-	CreateUTXOs(createUTXOs []UTXO, height int64)
+	CreateUTXOs(createUTXOs []UTXO, height int64) error
+
+	// FindUTXOs finds all unspent UTXOs for an address.
+	FindUTXOs(kind byte, address []byte) (res []UTXO, err error)
 
 	// UndoAbove removes created UTXOs and re-activates Removed UTXOs above `height`.
-	UndoAbove(height int64)
+	UndoAbove(height int64) error
 
-	// TrimRemoved permanently deletes all 'Removed' UTXOs below `height`
-	TrimRemoved(height int64)
+	// TrimSpentUTXOs permanently deletes all spent UTXOs below `height`
+	TrimSpentUTXOs(height int64) error
 }
 
 type Store interface {

@@ -2,6 +2,8 @@ package store
 
 import (
 	"context"
+	"database/sql"
+	"fmt"
 
 	"github.com/dogeorg/indexer/spec"
 	"github.com/dogeorg/storelib"
@@ -34,35 +36,212 @@ func (s *IndexStore) Clone() (StoreImpl, *StoreBase, Store, StoreTx) {
 
 // DATABASE SCHEMA
 
+// SMALLINT is int16, INTEGER is int32, BIGINT is int64
+// HASH index uses a 4-byte hash of the indexed column, which is lossy/approx but compact
+// kind IN (2,3,5,6) is (TX_PUBKEYHASH,TX_SCRIPTHASH,TX_WITNESS_V0_KEYHASH,TX_WITNESS_V0_SCRIPTHASH)
+// `tx_in` can be populated to keep all tx_ins for per-address transaction listing.
+// sizes: tx_out 36, tx_in 24
 const SCHEMA_v0 = `
+CREATE TABLE tx_out (
+	txid BIGINT NOT NULL,
+	vout INTEGER NOT NULL,
+	value BIGINT NOT NULL,
+	scriptid BIGINT NOT NULL,
+	spent BIGINT NULL,
+	PRIMARY KEY (txid,vout)
+);
+CREATE INDEX tx_out_script ON tx_out (scriptid);
+CREATE TABLE script (
+	scriptid BIGSERIAL PRIMARY KEY,
+	kind SMALLINT NOT NULL,
+	script BYTEA NOT NULL
+);
+CREATE INDEX script_address ON script USING HASH (script) WHERE kind IN (2,3,5,6);
+CREATE TABLE tx (
+	txid BIGSERIAL PRIMARY KEY,
+	height BIGINT NOT NULL,
+	hash BYTEA NOT NULL
+);
+CREATE INDEX tx_hash ON tx USING HASH (hash);
+CREATE INDEX tx_height ON tx (height);
+CREATE TABLE tx_in (
+	txid BIGINT NOT NULL,
+	vin INTEGER NOT NULL,
+	hash BIGINT NOT NULL,
+	vout INTEGER NOT NULL,
+	PRIMARY KEY (txid,vin)
+);
+CREATE TABLE resume (
+	hash BYTEA NOT NULL
+);
 `
 
+// address -> transactions
+// script_address -> scriptid -> script_tx -> txid -> hash
+
 var MIGRATIONS = []storelib.Migration{
-	{Version: 0, SQL: SCHEMA_v0},
+	{Version: 1, SQL: SCHEMA_v0},
 }
 
 // STORE INTERFACE
 
-func (s *IndexStore) GetChainPos() string {
-	return ""
+func (s *IndexStore) GetResumePoint() ([]byte, error) {
+	row := s.Txn.QueryRow(`SELECT hash FROM resume LIMIT 1`)
+	var hash []byte
+	err := row.Scan(&hash)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil // empty array
+		}
+		return nil, s.DBErr(err, "GetResumePoint")
+	}
+	return hash, nil
+}
+
+func (s *IndexStore) SetResumePoint(hash []byte) error {
+	res, err := s.Txn.Exec(`UPDATE resume SET hash=$1`, hash)
+	if err != nil {
+		return s.DBErr(err, "SetResumePoint")
+	}
+	rows, err := res.RowsAffected()
+	if err != nil {
+		return s.DBErr(err, "SetResumePoint RowsAffected")
+	}
+	if rows < 1 {
+		// First time: insert the single row.
+		_, err = s.Txn.Exec(`INSERT INTO resume (hash) VALUES ($1)`, hash)
+		if err != nil {
+			return s.DBErr(err, "SetResumePoint Insert")
+		}
+	}
+	return nil
 }
 
 // RemoveUTXOs marks UTXOs as spent at `height`
-func (s *IndexStore) RemoveUTXOs(removeUTXOs []spec.OutPointKey, height int64) {
-
+func (s *IndexStore) RemoveUTXOs(removeUTXOs []spec.OutPointKey, height int64) error {
+	query, err := s.Txn.Prepare(`UPDATE tx_out SET spent=$1 WHERE vout=$2 AND txid=(SELECT txid FROM tx WHERE hash=$3)`)
+	if err != nil {
+		return err
+	}
+	for _, out := range removeUTXOs {
+		_, err := query.Exec(height, out.VOut, out.Tx)
+		if err != nil {
+			return s.DBErr(err, "RemoveUTXOs")
+		}
+	}
+	return nil
 }
 
 // CreateUTXOs inserts new UTXOs at `height` (can replace Removed UTXOs)
-func (s *IndexStore) CreateUTXOs(createUTXOs []spec.UTXO, height int64) {
+func (s *IndexStore) CreateUTXOs(createUTXOs []spec.UTXO, height int64) error {
+	// insert all required `tx` rows and cache the mapping to txid
+	// no conflict expected: we delete tx on rollback, and hash is unique in Core
+	txidMap := map[string]int64{} // hash -> txid
+	txStmt, err := s.Txn.Prepare(`INSERT INTO tx (height,hash) VALUES ($1,$2) RETURNING txid`)
+	if err != nil {
+		return s.DBErr(err, "CreateUTXOs: prepare tx")
+	}
+	for _, utxo := range createUTXOs {
+		hashKey := string(utxo.TxID) // binary string from hash bytes
+		if _, found := txidMap[hashKey]; !found {
+			row := txStmt.QueryRow(height, utxo.TxID)
+			var txid int64
+			err = row.Scan(&txid)
+			if err != nil {
+				return s.DBErr(err, "CreateUTXOs: insert tx")
+			}
+			txidMap[hashKey] = txid
+		}
+	}
+	// insert all required addresses
+	scriptMap := map[string]int64{} // hash -> scriptid
+	scriptStmt, err := s.Txn.Prepare(`INSERT INTO script (kind,script) VALUES ($1,$2) RETURNING scriptid`)
+	if err != nil {
+		return s.DBErr(err, "CreateUTXOs: prepare script")
+	}
+	for _, utxo := range createUTXOs {
+		hashKey := string(utxo.Script) // binary string from hash bytes
+		if _, found := scriptMap[hashKey]; !found {
+			row := scriptStmt.QueryRow(utxo.Type, utxo.Script)
+			var scrid int64
+			err = row.Scan(&scrid)
+			if err != nil {
+				return s.DBErr(err, "CreateUTXOs: insert script")
+			}
+			scriptMap[hashKey] = scrid
+		}
+	}
+	// insert all utxos
+	utxoStmt, err := s.Txn.Prepare(`INSERT INTO tx_out (txid,vout,value,scriptid) VALUES ($1,$2,$3,$4)`)
+	if err != nil {
+		return err
+	}
+	for _, utxo := range createUTXOs {
+		txid, found := txidMap[string(utxo.TxID)]
+		if !found {
+			return fmt.Errorf("CreateUTXOs: txid not found in map (BUG: was inserted above)")
+		}
+		scrid, found := scriptMap[string(utxo.Script)]
+		if !found {
+			return fmt.Errorf("CreateUTXOs: scriptid not found in map (BUG: was inserted above)")
+		}
+		// no conflict expected: we delete utxo on rollback, and (hash,vout) is unique in Core
+		_, err := utxoStmt.Exec(txid, utxo.VOut, utxo.Value, scrid)
+		if err != nil {
+			return s.DBErr(err, "CreateUTXOs: insert utxo")
+		}
+	}
+	return nil
+}
 
+func (s *IndexStore) FindUTXOs(kind byte, address []byte) (res []spec.UTXO, err error) {
+	rows, err := s.Txn.Query(`SELECT (tx.hash,u.vout,u.value,script) FROM tx_out u INNER JOIN tx ON txid WHERE scriptid = (SELECT scriptid FROM script WHERE script = $1 AND kind = $2) AND spent IS NULL`, address, kind)
+	if err != nil {
+		return []spec.UTXO{}, s.DBErr(err, "FindUTXOs: query")
+	}
+	for rows.Next() {
+		var hash []byte
+		var vout uint32
+		var value int64
+		var script []byte
+		err = rows.Scan(&hash, &vout, &value, &script)
+		if err != nil {
+			return []spec.UTXO{}, s.DBErr(err, "FindUTXOs: scan")
+		}
+		res = append(res, spec.UTXO{TxID: hash, VOut: vout, Value: value, Type: kind, Script: script})
+	}
+	if err = rows.Close(); err != nil {
+		return []spec.UTXO{}, s.DBErr(err, "FindUTXOs: scan")
+	}
+	return res, nil
 }
 
 // UndoAbove removes created UTXOs and re-activates Removed UTXOs above `height`.
-func (s *IndexStore) UndoAbove(height int64) {
-
+func (s *IndexStore) UndoAbove(height int64) error {
+	// undo inserting utxos.
+	_, err := s.Txn.Exec(`DELETE FROM tx_out WHERE txid IN (SELECT txid FROM tx WHERE height > $1)`, height)
+	if err != nil {
+		return s.DBErr(err, "UndoAbove: delete utxo")
+	}
+	// undo inserting txes.
+	_, err = s.Txn.Exec(`DELETE FROM tx WHERE height > $1`, height)
+	if err != nil {
+		return s.DBErr(err, "UndoAbove: delete tx")
+	}
+	// undo marking utxos spent.
+	_, err = s.Txn.Exec(`UPDATE tx_out SET spent=NULL WHERE height > $1`, height)
+	if err != nil {
+		return s.DBErr(err, "UndoAbove: unmark spent")
+	}
+	return nil
 }
 
-// TrimRemoved permanently deletes all 'Removed' UTXOs below `height`
-func (s *IndexStore) TrimRemoved(height int64) {
-
+// TrimSpentUTXOs permanently deletes all 'Removed' UTXOs below `height`
+func (s *IndexStore) TrimSpentUTXOs(height int64) error {
+	// only considers utxos with 'spent' non-null
+	_, err := s.Txn.Exec(`DELETE FROM tx_out WHERE spent < $1`, height)
+	if err != nil {
+		return s.DBErr(err, "TrimRemoved")
+	}
+	return nil
 }

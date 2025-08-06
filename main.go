@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"log"
 	"os"
@@ -15,7 +14,11 @@ import (
 	"github.com/dogeorg/indexer/store"
 )
 
+const RETRY_DELAY = 5 * time.Second
+const MaxRollbackDepth = 1440 // 24 hours of blocks
+
 type Config struct {
+	connStr string
 	rpcHost string
 	rpcPort int
 	rpcUser string
@@ -25,7 +28,10 @@ type Config struct {
 }
 
 func main() {
+	log.Printf("\n\n[Indexer] starting")
+
 	config := Config{
+		connStr: "postgres://localhost/index?sslmode=disable",
 		rpcHost: "127.0.0.1",
 		rpcPort: 22555,
 		rpcUser: "dogecoin",
@@ -47,9 +53,9 @@ func main() {
 	gov := governor.New().CatchSignals().Restart(1 * time.Second)
 
 	// create database store
-	db, err := store.NewIndexStore("index.db", context.Background())
+	db, err := store.NewIndexStore(config.connStr, gov.GlobalContext())
 	if err != nil {
-		log.Fatalf("cannot open database: %v", err)
+		log.Fatalf("[Indexer] database init: %v", err)
 	}
 
 	// Core Node blockchain access.
@@ -60,23 +66,41 @@ func main() {
 	zmqSvc, tipChanged := core.NewTipChaser(zmqAddr)
 	gov.Add("ZMQ", zmqSvc)
 
-	// Get starting hash.
-	fromBlock := db.GetChainPos()
+	// Get the resume-point.
+	var fromBlock []byte
+	var fromHash string
+	for !gov.Stopping() {
+		fromBlock, err = db.GetResumePoint()
+		if err == nil {
+			break
+		}
+		log.Printf("[Indexer] get chainstate (will retry): %v", err)
+		gov.Sleep(RETRY_DELAY)
+	}
+	if len(fromBlock) > 0 {
+		fromHash = doge.HexEncode(fromBlock)
+	} else {
+		// Start from the Genesis Block.
+		fromHash, err = blockchain.GetBlockHash(0, gov.GlobalContext())
+		if err != nil {
+			log.Printf("[Indexer] get genesis block hash: %v", err)
+			return
+		}
+	}
 
 	// Walk the Doge.
 	walkSvc, blocks := walker.WalkTheDoge(walker.WalkerOptions{
-		Chain:           chain,
-		ResumeFromBlock: fromBlock,
-		Client:          blockchain,
-		TipChanged:      tipChanged,
+		Chain:              chain,
+		LastProcessedBlock: fromHash,
+		Client:             blockchain,
+		TipChanged:         tipChanged,
 	})
 	gov.Add("Walk", walkSvc)
 
 	// Index the chain.
-	gov.Add("Index", index.NewIndexer(db, blocks))
+	gov.Add("Index", index.NewIndexer(db, blocks, MaxRollbackDepth))
 
 	// run services until interrupted.
-	gov.Start()
-	gov.WaitForShutdown()
-	fmt.Println("finished.")
+	gov.Start().WaitForShutdown()
+	fmt.Println("[Indexer] stopped")
 }

@@ -4,9 +4,9 @@ go 1.22.5
 
 require (
 	github.com/dogeorg/doge v0.1.1
-	github.com/dogeorg/dogewalker v0.0.2
-	github.com/dogeorg/governor v1.0.3
-	github.com/dogeorg/storelib v0.0.1
+	github.com/dogeorg/dogewalker v0.0.4
+	github.com/dogeorg/governor v1.0.5
+	github.com/dogeorg/storelib v0.0.3
 )
 
 require (
@@ -18,3 +18,5 @@ require (
 	github.com/mr-tron/base58 v1.2.0 // indirect
 	github.com/pebbe/zmq4 v1.2.9 // indirect
 )
+
+replace github.com/dogeorg/storelib => /Users/raffe/code/storelib

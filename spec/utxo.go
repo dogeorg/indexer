@@ -1,8 +1,9 @@
 package spec
 
 type UTXO struct {
-	Key    OutPointKey
-	Value  int64
+	TxID   []byte // 32-byte tx hash
+	VOut   uint32 // tx output index
+	Value  int64  // Koinu value
 	Type   byte   // script type
-	Script []byte // content depends on Script[0] (OutType)
+	Script []byte // content depends on 'Type' (compressed by ClassifyScript)
 }

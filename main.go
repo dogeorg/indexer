@@ -31,7 +31,7 @@ func main() {
 	log.Printf("\n\n[Indexer] starting")
 
 	config := Config{
-		connStr: "postgres://localhost/index?sslmode=disable",
+		connStr: "index.db", // "postgres://localhost/index?sslmode=disable",
 		rpcHost: "127.0.0.1",
 		rpcPort: 22555,
 		rpcUser: "dogecoin",

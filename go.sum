@@ -6,8 +6,8 @@ github.com/decred/dcrd/dcrec/secp256k1/v4 v4.3.0 h1:rpfIENRNNilwHwZeG5+P150SMrnN
 github.com/decred/dcrd/dcrec/secp256k1/v4 v4.3.0/go.mod h1:v57UDF4pDQJcEfFUCRop3lJL149eHGSe9Jvczhzjo/0=
 github.com/dogeorg/doge v0.1.1 h1:/pZt7M3YNiNu5w83wMuT52XMVDp8f4Jwku1ciQnx+TM=
 github.com/dogeorg/doge v0.1.1/go.mod h1:Q9/0XChJ8EA54OrhjkWm+ySEm0zZ5M7C38do/ZCnZuY=
-github.com/dogeorg/dogewalker v0.0.4 h1:xyMEtD/7GonsWRUgSicfbxbJI1WMhAuYSOFcW2dBhX4=
-github.com/dogeorg/dogewalker v0.0.4/go.mod h1:yrAKdKjGLzY0Rj/4MY7kjmvOFCDaZXbjlmX5pIaOuMA=
+github.com/dogeorg/dogewalker v0.0.5 h1:KhpYitDX7a0ATQKM4EQ0s76P/oZLEabz3B3b6puHP3Y=
+github.com/dogeorg/dogewalker v0.0.5/go.mod h1:yrAKdKjGLzY0Rj/4MY7kjmvOFCDaZXbjlmX5pIaOuMA=
 github.com/dogeorg/governor v1.0.5 h1:XXdsKva4MvraaGZQo/8LqZIguIa3NkBSG454sIItfuo=
 github.com/dogeorg/governor v1.0.5/go.mod h1:+3y1e0TjLs963Sphk9svnzSXBlFdzQST/VNWzG6N6jw=
 github.com/dogeorg/storelib v0.0.3 h1:6yM3iu6NBf1HP0mZK8UMJPq7CfANLXDx0VaoHd1CRng=

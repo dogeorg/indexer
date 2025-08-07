@@ -16,7 +16,7 @@ const RETRY_DELAY = 5 * time.Second // for RPC and Database errors.
 const ONE_DOGE = 100_000_000        // 1 DOGE
 const DUST_LIMIT = ONE_DOGE / 100   // 0.01 DOGE
 
-const trimIntervalBlocks = 100 // Trim UTXOs every N blocks
+const trimIntervalBlocks = 1000 // Trim UTXOs every N blocks
 
 var Zeroes = [32]byte{}
 

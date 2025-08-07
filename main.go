@@ -10,6 +10,7 @@ import (
 	"github.com/dogeorg/dogewalker/core"
 	"github.com/dogeorg/dogewalker/walker"
 	"github.com/dogeorg/governor"
+	"github.com/dogeorg/indexer/api"
 	"github.com/dogeorg/indexer/index"
 	"github.com/dogeorg/indexer/store"
 )
@@ -25,6 +26,7 @@ type Config struct {
 	rpcPass string
 	zmqHost string
 	zmqPort int
+	bindAPI string
 }
 
 func main() {
@@ -38,6 +40,7 @@ func main() {
 		rpcPass: "dogecoin",
 		zmqHost: "127.0.0.1",
 		zmqPort: 28332,
+		bindAPI: "localhost:8888",
 	}
 	chain := &doge.DogeMainNetChain
 
@@ -99,6 +102,9 @@ func main() {
 
 	// Index the chain.
 	gov.Add("Index", index.NewIndexer(db, blocks, MaxRollbackDepth))
+
+	// REST API.
+	gov.Add("API", api.New(config.bindAPI, db))
 
 	// run services until interrupted.
 	gov.Start().WaitForShutdown()

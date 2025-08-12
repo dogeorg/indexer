@@ -1,9 +1,10 @@
 package main
 
 import (
+	"errors"
+	"flag"
 	"fmt"
 	"log"
-	"os"
 	"time"
 
 	"github.com/dogeorg/doge"
@@ -19,38 +20,53 @@ const RETRY_DELAY = 5 * time.Second
 const MaxRollbackDepth = 1440 // 24 hours of blocks
 
 type Config struct {
-	connStr string
-	rpcHost string
-	rpcPort int
-	rpcUser string
-	rpcPass string
-	zmqHost string
-	zmqPort int
-	bindAPI string
+	connStr   string
+	rpcHost   string
+	rpcPort   int
+	rpcUser   string
+	rpcPass   string
+	zmqHost   string
+	zmqPort   int
+	bindAPI   string
+	chainName string
 }
 
 func main() {
 	log.Printf("\n\n[Indexer] starting")
 
-	config := Config{
-		connStr: "index.db", // "postgres://localhost/index?sslmode=disable",
-		rpcHost: "127.0.0.1",
-		rpcPort: 22555,
-		rpcUser: "dogecoin",
-		rpcPass: "dogecoin",
-		zmqHost: "127.0.0.1",
-		zmqPort: 28332,
-		bindAPI: "localhost:8888",
-	}
-	chain := &doge.DogeMainNetChain
+	var config Config
+	flag.StringVar(&config.connStr, "dburl", "index.db", "Database connection string")
+	flag.StringVar(&config.rpcHost, "rpchost", "127.0.0.1", "RPC host")
+	flag.IntVar(&config.rpcPort, "rpcport", 22555, "RPC port")
+	flag.StringVar(&config.rpcUser, "rpcuser", "dogecoin", "RPC username")
+	flag.StringVar(&config.rpcPass, "rpcpass", "dogecoin", "RPC password")
+	flag.StringVar(&config.zmqHost, "zmqhost", "127.0.0.1", "ZMQ host")
+	flag.IntVar(&config.zmqPort, "zmqport", 28332, "ZMQ port")
+	flag.StringVar(&config.bindAPI, "bindapi", "localhost:8888", "API bind address")
+	flag.StringVar(&config.chainName, "chain", "mainnet", "Chain Params (mainnet, testnet, regtest)")
 
-	webPort := os.Getenv("PORT")
-	if webPort == "" {
-		webPort = "8000"
+	webPort := flag.String("webport", "8000", "Web port")
+	listenPort := flag.String("listenport", "8001", "Listen port")
+
+	flag.Parse()
+
+	var chain *doge.ChainParams
+	switch config.chainName {
+	case "mainnet":
+		chain = &doge.DogeMainNetChain
+	case "testnet":
+		chain = &doge.DogeTestNetChain
+	case "regtest":
+		chain = &doge.DogeRegTestChain
+	default:
+		panic(errors.New("Unexpected chain: " + config.chainName))
 	}
-	listenPort := os.Getenv("LISTEN")
-	if listenPort == "" {
-		listenPort = "8001"
+
+	if *webPort == "" {
+		*webPort = "8000"
+	}
+	if *listenPort == "" {
+		*listenPort = "8001"
 	}
 
 	gov := governor.New().CatchSignals().Restart(1 * time.Second)

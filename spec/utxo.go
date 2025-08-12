@@ -1,6 +1,8 @@
 package spec
 
-import "github.com/dogeorg/doge"
+import (
+	"github.com/dogeorg/doge"
+)
 
 type UTXO struct {
 	TxID   []byte          // 32-byte tx hash

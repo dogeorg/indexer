@@ -10,9 +10,9 @@ import (
 	"github.com/dogeorg/dogewalker/core"
 	"github.com/dogeorg/dogewalker/walker"
 	"github.com/dogeorg/governor"
-	"github.com/dogeorg/indexer/api"
 	"github.com/dogeorg/indexer/index"
 	"github.com/dogeorg/indexer/store"
+	"github.com/dogeorg/indexer/web"
 )
 
 const RETRY_DELAY = 5 * time.Second
@@ -104,7 +104,7 @@ func main() {
 	gov.Add("Index", index.NewIndexer(db, blocks, MaxRollbackDepth))
 
 	// REST API.
-	gov.Add("API", api.New(config.bindAPI, db))
+	gov.Add("API", web.New(config.bindAPI, db))
 
 	// run services until interrupted.
 	gov.Start().WaitForShutdown()

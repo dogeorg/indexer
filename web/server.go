@@ -1,13 +1,15 @@
-package api
+package web
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"log"
 	"net/http"
 	"time"
 
 	"github.com/dogeorg/doge"
+	"github.com/dogeorg/doge/koinu"
 	"github.com/dogeorg/governor"
 	"github.com/dogeorg/indexer/spec"
 )
@@ -67,7 +69,8 @@ func (a *WebAPI) healthCheck(w http.ResponseWriter, r *http.Request) {
 
 func (a *WebAPI) getBalance(w http.ResponseWriter, r *http.Request) {
 	options := "GET, OPTIONS"
-	if r.Method == http.MethodGet {
+	switch r.Method {
+	case http.MethodGet:
 		address := r.URL.Query().Get("address")
 		if address == "" {
 			sendError(w, 400, "bad-request", "missing 'address' in the URL", options)
@@ -91,18 +94,61 @@ func (a *WebAPI) getBalance(w http.ResponseWriter, r *http.Request) {
 		} else {
 			sendJson(w, bal, options)
 		}
-	} else if r.Method == http.MethodOptions {
+	case http.MethodOptions:
 		sendOptions(w, r, options)
 	}
 }
 
 func (a *WebAPI) getUtxo(w http.ResponseWriter, r *http.Request) {
-	_, err := a.store.GetResumePoint()
-	if err != nil {
-		w.Write([]byte(fmt.Sprintf(`{"ok":false,"error":"%v"}`, err)))
-	} else {
-		w.Write([]byte(`{"ok":true}`))
+	options := "GET, OPTIONS"
+	switch r.Method {
+	case http.MethodGet:
+		address := r.URL.Query().Get("address")
+		if address == "" {
+			sendError(w, 400, "bad-request", "missing 'address' in the URL", options)
+			return
+		}
+		pubkeyHash, err := doge.Base58DecodeCheck(address)
+		if err != nil {
+			sendError(w, 400, "bad-request", "invalid Dogecoin address", options)
+			return
+		}
+		if len(pubkeyHash) != 21 {
+			sendError(w, 400, "bad-request", "invalid Dogecoin address", options)
+			return
+		}
+		kind := utxoKindFromVersionByte(pubkeyHash[0])
+		hash := pubkeyHash[1:]
+		list, err := a.store.FindUTXOs(kind, hash)
+		if err != nil {
+			sendError(w, 500, "error", err.Error(), options)
+		} else {
+			utxo := []UTXOItem{}
+			for _, u := range list {
+				utxo = append(utxo, UTXOItem{
+					TxID:   doge.HexEncodeReversed(u.TxID),
+					VOut:   u.VOut,
+					Value:  koinu.Koinu(u.Value),
+					Type:   utxoKindStr(u.Type),
+					Script: hex.EncodeToString(doge.ExpandScript(u.Type, u.Script)),
+				})
+			}
+			sendJson(w, UTXOResponse{UTXO: utxo}, options)
+		}
+	case http.MethodOptions:
+		sendOptions(w, r, options)
 	}
+}
+
+type UTXOResponse struct {
+	UTXO []UTXOItem `json:"utxo"`
+}
+type UTXOItem struct {
+	TxID   string      `json:"tx"`     // hex-encoded transaction ID (byte-reversed)
+	VOut   uint32      `json:"vout"`   // transaction output number
+	Value  koinu.Koinu `json:"value"`  // UTXO value to 8 decimal places, as a decimal string
+	Type   string      `json:"type"`   // UTXO type (determines what you need to sign it)
+	Script string      `json:"script"` // hex-encoded UTXO locking script (needed to sign the UTXO)
 }
 
 func utxoKindFromVersionByte(version byte) doge.ScriptType {
@@ -127,4 +173,28 @@ func utxoKindFromVersionByte(version byte) doge.ScriptType {
 		return doge.ScriptTypeP2PK
 	}
 	return doge.ScriptTypeNone
+}
+
+func utxoKindStr(scriptType doge.ScriptType) string {
+	switch scriptType {
+	case doge.ScriptTypeNone:
+		return "None"
+	case doge.ScriptTypeP2PK:
+		return "P2PK"
+	case doge.ScriptTypeP2PKH:
+		return "P2PKH"
+	case doge.ScriptTypeP2SH:
+		return "P2SH"
+	case doge.ScriptTypeMultiSig:
+		return "MultiSig"
+	case doge.ScriptTypeP2PKHW:
+		return "P2PKHW"
+	case doge.ScriptTypeP2SHW:
+		return "P2SHW"
+	case doge.ScriptTypeNullData:
+		return "NullData"
+	case doge.ScriptTypeNonStandard:
+		return "NonStandard"
+	}
+	return "None"
 }

@@ -28,14 +28,13 @@ type Config struct {
 	zmqHost        string
 	zmqPort        int
 	bindAPI        string
-	chainName string
+	chainName      string
 	startingHeight int64
 }
 
-
 func main() {
 	log.Printf("\n\n[Indexer] starting")
-  
+
 	var config Config
 	flag.StringVar(&config.connStr, "dburl", "index.db", "Database connection string")
 	flag.StringVar(&config.rpcHost, "rpchost", "127.0.0.1", "RPC host")
@@ -46,8 +45,8 @@ func main() {
 	flag.IntVar(&config.zmqPort, "zmqport", 28332, "ZMQ port")
 	flag.StringVar(&config.bindAPI, "bindapi", "localhost:8888", "API bind address")
 	flag.StringVar(&config.chainName, "chain", "mainnet", "Chain Params (mainnet, testnet, regtest)")
-  flag.IntVar(&config.startingHeight, "startingheight", 5830000, "Starting Height")
-  
+	flag.Int64Var(&config.startingHeight, "startingheight", 5830000, "Starting Height")
+
 	webPort := flag.String("webport", "8000", "Web port")
 	listenPort := flag.String("listenport", "8001", "Listen port")
 

@@ -19,28 +19,30 @@ const RETRY_DELAY = 5 * time.Second
 const MaxRollbackDepth = 1440 // 24 hours of blocks
 
 type Config struct {
-	connStr string
-	rpcHost string
-	rpcPort int
-	rpcUser string
-	rpcPass string
-	zmqHost string
-	zmqPort int
-	bindAPI string
+	connStr        string
+	rpcHost        string
+	rpcPort        int
+	rpcUser        string
+	rpcPass        string
+	zmqHost        string
+	zmqPort        int
+	bindAPI        string
+	startingHeight int64
 }
 
 func main() {
 	log.Printf("\n\n[Indexer] starting")
 
 	config := Config{
-		connStr: "index.db", // "postgres://localhost/index?sslmode=disable",
-		rpcHost: "127.0.0.1",
-		rpcPort: 22555,
-		rpcUser: "dogecoin",
-		rpcPass: "dogecoin",
-		zmqHost: "127.0.0.1",
-		zmqPort: 28332,
-		bindAPI: "localhost:8888",
+		connStr:        "index.db", // "postgres://localhost/index?sslmode=disable",
+		rpcHost:        "127.0.0.1",
+		rpcPort:        22555,
+		rpcUser:        "dogecoin",
+		rpcPass:        "dogecoin",
+		zmqHost:        "127.0.0.1",
+		zmqPort:        28332,
+		bindAPI:        "localhost:8888",
+		startingHeight: 5830000,
 	}
 	chain := &doge.DogeMainNetChain
 
@@ -84,7 +86,7 @@ func main() {
 		fromHash = doge.HexEncode(fromBlock)
 	} else {
 		// Start from the Genesis Block.
-		fromHash, err = blockchain.GetBlockHash(0, gov.GlobalContext())
+		fromHash, err = blockchain.GetBlockHash(config.startingHeight, gov.GlobalContext())
 		if err != nil {
 			log.Printf("[Indexer] get genesis block hash: %v", err)
 			return

@@ -72,7 +72,7 @@ func (i *Indexer) Run() {
 								TxID:   txID,
 								VOut:   uint32(vout),
 								Value:  out.Value,
-								Type:   byte(typ),
+								Type:   typ,
 								Script: compact,
 							})
 						}
@@ -97,7 +97,7 @@ func (i *Indexer) Run() {
 								return err
 							}
 						}
-						return tx.SetResumePoint(resumeHash)
+						return tx.SetResumePoint(resumeHash, cmd.Height)
 					})
 					if err == nil {
 						break
@@ -119,7 +119,7 @@ func (i *Indexer) Run() {
 					if err != nil {
 						return err
 					}
-					return tx.SetResumePoint(resumeHash)
+					return tx.SetResumePoint(resumeHash, cmd.Height)
 				})
 				if err == nil {
 					break

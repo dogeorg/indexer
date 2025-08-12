@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 
+	"github.com/dogeorg/doge"
 	"github.com/dogeorg/indexer/spec"
 	"github.com/dogeorg/storelib"
 )
@@ -58,7 +59,8 @@ CREATE TABLE tx (
 CREATE INDEX tx_hash ON tx USING HASH (hash);
 CREATE INDEX tx_height ON tx (height);
 CREATE TABLE resume (
-	hash BYTEA NOT NULL
+	hash BYTEA NOT NULL,
+	height BIGINT NOT NULL
 );
 `
 
@@ -81,8 +83,8 @@ func (s *IndexStore) GetResumePoint() ([]byte, error) {
 	return hash, nil
 }
 
-func (s *IndexStore) SetResumePoint(hash []byte) error {
-	res, err := s.Txn.Exec(`UPDATE resume SET hash=$1`, hash)
+func (s *IndexStore) SetResumePoint(hash []byte, height int64) error {
+	res, err := s.Txn.Exec(`UPDATE resume SET hash=$1, height=$2`, hash, height)
 	if err != nil {
 		return s.DBErr(err, "SetResumePoint")
 	}
@@ -92,7 +94,7 @@ func (s *IndexStore) SetResumePoint(hash []byte) error {
 	}
 	if rows < 1 {
 		// First time: insert the single row.
-		_, err = s.Txn.Exec(`INSERT INTO resume (hash) VALUES ($1)`, hash)
+		_, err = s.Txn.Exec(`INSERT INTO resume (hash,height) VALUES ($1,$2)`, hash, height)
 		if err != nil {
 			return s.DBErr(err, "SetResumePoint Insert")
 		}
@@ -155,8 +157,8 @@ func (s *IndexStore) CreateUTXOs(createUTXOs []spec.UTXO, height int64) error {
 	return nil
 }
 
-func (s *IndexStore) FindUTXOs(kind byte, address []byte) (res []spec.UTXO, err error) {
-	rows, err := s.Txn.Query(`SELECT (tx.hash,u.vout,u.value,u.kind,u.script) FROM utxo u INNER JOIN tx ON txid WHERE script=$1 AND kind=$2) AND spent IS NULL`, address, kind)
+func (s *IndexStore) FindUTXOs(kind doge.ScriptType, address []byte) (res []spec.UTXO, err error) {
+	rows, err := s.Txn.Query(`SELECT t.hash,u.vout,u.value,u.kind,u.script FROM utxo u INNER JOIN tx t ON u.txid = t.txid WHERE u.script=$1 AND u.kind=$2 AND u.spent IS NULL`, address, kind)
 	if err != nil {
 		return []spec.UTXO{}, s.DBErr(err, "FindUTXOs: query")
 	}
@@ -173,6 +175,19 @@ func (s *IndexStore) FindUTXOs(kind byte, address []byte) (res []spec.UTXO, err 
 	}
 	if err = rows.Close(); err != nil {
 		return []spec.UTXO{}, s.DBErr(err, "FindUTXOs: scan")
+	}
+	return res, nil
+}
+
+func (s *IndexStore) GetBalance(kind doge.ScriptType, address []byte, confirmations int64) (res spec.Balance, err error) {
+	row := s.Txn.QueryRow(`SELECT
+		(SELECT COALESCE(SUM(u.value),0) FROM utxo u INNER JOIN tx t ON u.txid = t.txid WHERE u.script=$1 AND u.kind=$2 AND t.height < (SELECT height FROM resume LIMIT 1)-$3 AND u.spent IS NULL),
+		(SELECT COALESCE(SUM(u.value),0) FROM utxo u INNER JOIN tx t ON u.txid = t.txid WHERE u.script=$1 AND u.kind=$2 AND t.height >= (SELECT height FROM resume LIMIT 1)-$3 AND u.spent IS NULL),
+		(SELECT COALESCE(SUM(u.value),0) FROM utxo u INNER JOIN tx t ON u.txid = t.txid WHERE u.script=$1 AND u.kind=$2 AND u.spent >= (SELECT height FROM resume LIMIT 1)-$3)`,
+		address, kind, confirmations)
+	err = row.Scan(&res.Available, &res.Incoming, &res.Outgoing)
+	if err != nil {
+		return spec.Balance{}, s.DBErr(err, "GetBalance: scan")
 	}
 	return res, nil
 }

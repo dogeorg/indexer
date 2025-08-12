@@ -50,7 +50,6 @@ func (i *Indexer) Run() {
 		}
 		if cmd.Block != nil {
 			// next block.
-			//log.Printf("[%v] %v", cmd.Height, cmd.Block.Hash)
 			var removeUTXOs []spec.OutPointKey
 			var createUTXOs []spec.UTXO
 			for _, tx := range cmd.Block.Block.Tx {
@@ -65,14 +64,14 @@ func (i *Indexer) Run() {
 				// which theoretically could be a problem on a 32-bit system
 				for vout, out := range tx.VOut {
 					// Only index spendable outputs.
-					if out.Value >= DUST_LIMIT {
+					if out.Value > 0 {
 						typ, compact := doge.ClassifyScript(out.Script)
 						if typ != doge.ScriptTypeNonStandard && typ != doge.ScriptTypeNullData {
 							createUTXOs = append(createUTXOs, spec.UTXO{
 								TxID:   txID,
 								VOut:   uint32(vout),
 								Value:  out.Value,
-								Type:   byte(typ),
+								Type:   typ,
 								Script: compact,
 							})
 						}
@@ -97,7 +96,7 @@ func (i *Indexer) Run() {
 								return err
 							}
 						}
-						return tx.SetResumePoint(resumeHash)
+						return tx.SetResumePoint(resumeHash, cmd.Height)
 					})
 					if err == nil {
 						break
@@ -119,7 +118,7 @@ func (i *Indexer) Run() {
 					if err != nil {
 						return err
 					}
-					return tx.SetResumePoint(resumeHash)
+					return tx.SetResumePoint(resumeHash, cmd.Height)
 				})
 				if err == nil {
 					break

@@ -11,29 +11,31 @@ import (
 	"github.com/dogeorg/dogewalker/core"
 	"github.com/dogeorg/dogewalker/walker"
 	"github.com/dogeorg/governor"
-	"github.com/dogeorg/indexer/api"
 	"github.com/dogeorg/indexer/index"
 	"github.com/dogeorg/indexer/store"
+	"github.com/dogeorg/indexer/web"
 )
 
 const RETRY_DELAY = 5 * time.Second
 const MaxRollbackDepth = 1440 // 24 hours of blocks
 
 type Config struct {
-	connStr   string
-	rpcHost   string
-	rpcPort   int
-	rpcUser   string
-	rpcPass   string
-	zmqHost   string
-	zmqPort   int
-	bindAPI   string
+	connStr        string
+	rpcHost        string
+	rpcPort        int
+	rpcUser        string
+	rpcPass        string
+	zmqHost        string
+	zmqPort        int
+	bindAPI        string
 	chainName string
+	startingHeight int64
 }
+
 
 func main() {
 	log.Printf("\n\n[Indexer] starting")
-
+  
 	var config Config
 	flag.StringVar(&config.connStr, "dburl", "index.db", "Database connection string")
 	flag.StringVar(&config.rpcHost, "rpchost", "127.0.0.1", "RPC host")
@@ -44,7 +46,8 @@ func main() {
 	flag.IntVar(&config.zmqPort, "zmqport", 28332, "ZMQ port")
 	flag.StringVar(&config.bindAPI, "bindapi", "localhost:8888", "API bind address")
 	flag.StringVar(&config.chainName, "chain", "mainnet", "Chain Params (mainnet, testnet, regtest)")
-
+  flag.IntVar(&config.startingHeight, "startingheight", 5830000, "Starting Height")
+  
 	webPort := flag.String("webport", "8000", "Web port")
 	listenPort := flag.String("listenport", "8001", "Listen port")
 
@@ -100,7 +103,7 @@ func main() {
 		fromHash = doge.HexEncode(fromBlock)
 	} else {
 		// Start from the Genesis Block.
-		fromHash, err = blockchain.GetBlockHash(0, gov.GlobalContext())
+		fromHash, err = blockchain.GetBlockHash(config.startingHeight, gov.GlobalContext())
 		if err != nil {
 			log.Printf("[Indexer] get genesis block hash: %v", err)
 			return
@@ -120,7 +123,7 @@ func main() {
 	gov.Add("Index", index.NewIndexer(db, blocks, MaxRollbackDepth))
 
 	// REST API.
-	gov.Add("API", api.New(config.bindAPI, db))
+	gov.Add("API", web.New(config.bindAPI, db))
 
 	// run services until interrupted.
 	gov.Start().WaitForShutdown()

@@ -18,5 +18,3 @@ require (
 	github.com/mr-tron/base58 v1.2.0 // indirect
 	github.com/pebbe/zmq4 v1.2.9 // indirect
 )
-
-replace github.com/dogeorg/storelib => /Users/raffe/code/storelib

@@ -158,7 +158,7 @@ func (s *IndexStore) CreateUTXOs(createUTXOs []spec.UTXO, height int64) error {
 }
 
 func (s *IndexStore) FindUTXOs(kind doge.ScriptType, address []byte) (res []spec.UTXO, err error) {
-	rows, err := s.Txn.Query(`SELECT t.hash,u.vout,u.value,u.kind,u.script FROM utxo u INNER JOIN tx t ON u.txid = t.txid WHERE u.script=$1 AND u.kind=$2 AND u.spent IS NULL`, address, kind)
+	rows, err := s.Txn.Query(`SELECT t.hash,u.vout,u.value,u.script FROM utxo u INNER JOIN tx t ON u.txid = t.txid WHERE u.script=$1 AND u.kind=$2 AND u.spent IS NULL`, address, kind)
 	if err != nil {
 		return []spec.UTXO{}, s.DBErr(err, "FindUTXOs: query")
 	}

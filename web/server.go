@@ -153,23 +153,23 @@ type UTXOItem struct {
 
 func utxoKindFromVersionByte(version byte) doge.ScriptType {
 	switch version {
-	case doge.DogeMainNetChain.P2PKH_Address_Prefix:
-	case doge.DogeTestNetChain.P2PKH_Address_Prefix:
-	case doge.DogeRegTestChain.P2PKH_Address_Prefix:
-	case doge.BitcoinMainChain.P2PKH_Address_Prefix:
-	case doge.BitcoinTestChain.P2PKH_Address_Prefix:
+	case doge.DogeMainNetChain.P2PKH_Address_Prefix,
+		doge.DogeTestNetChain.P2PKH_Address_Prefix,
+		doge.DogeRegTestChain.P2PKH_Address_Prefix,
+		doge.BitcoinMainChain.P2PKH_Address_Prefix,
+		doge.BitcoinTestChain.P2PKH_Address_Prefix:
 		return doge.ScriptTypeP2PKH
-	case doge.DogeMainNetChain.P2SH_Address_Prefix:
-	case doge.DogeTestNetChain.P2SH_Address_Prefix:
-	case doge.DogeRegTestChain.P2SH_Address_Prefix:
-	case doge.BitcoinMainChain.P2SH_Address_Prefix:
-	case doge.BitcoinTestChain.P2SH_Address_Prefix:
+	case doge.DogeMainNetChain.P2SH_Address_Prefix,
+		doge.DogeTestNetChain.P2SH_Address_Prefix,
+		doge.DogeRegTestChain.P2SH_Address_Prefix,
+		doge.BitcoinMainChain.P2SH_Address_Prefix,
+		doge.BitcoinTestChain.P2SH_Address_Prefix:
 		return doge.ScriptTypeP2SH
-	case doge.DogeMainNetChain.PKey_Prefix:
-	case doge.DogeTestNetChain.PKey_Prefix:
-	case doge.DogeRegTestChain.PKey_Prefix:
-	case doge.BitcoinMainChain.PKey_Prefix:
-	case doge.BitcoinTestChain.PKey_Prefix:
+	case doge.DogeMainNetChain.PKey_Prefix,
+		doge.DogeTestNetChain.PKey_Prefix,
+		doge.DogeRegTestChain.PKey_Prefix,
+		doge.BitcoinMainChain.PKey_Prefix,
+		doge.BitcoinTestChain.PKey_Prefix:
 		return doge.ScriptTypeP2PK
 	}
 	return doge.ScriptTypeNone

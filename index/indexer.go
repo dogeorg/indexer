@@ -41,8 +41,14 @@ func NewIndexer(db spec.Store, blocks chan walker.BlockOrUndo, trimSpentAfter in
 func (i *Indexer) Run() {
 	i.db = i._db.WithCtx(i.Context) // bind to service context
 	trimCounter := int64(0)
+	done := i.Context.Done()
 	for !i.Stopping() {
-		cmd := <-i.blocks
+		var cmd walker.BlockOrUndo
+		select {
+		case cmd = <-i.blocks:
+		case <-done:
+			return // shutdown
+		}
 		resumeHash, err := hex.DecodeString(cmd.LastProcessedBlock)
 		if err != nil {
 			log.Printf("[Indexer] cannot decode 'ResumeFromBlock' hex (from DogeWalker): %v", err)

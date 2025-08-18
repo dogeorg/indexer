@@ -2,10 +2,12 @@ github.com/btcsuite/golangcrypto v0.0.0-20150304025918-53f62d9b43e8 h1:nOsAWScwu
 github.com/btcsuite/golangcrypto v0.0.0-20150304025918-53f62d9b43e8/go.mod h1:tYvUd8KLhm/oXvUeSEs2VlLghFjQt9+ZaF9ghH0JNjc=
 github.com/decred/dcrd/crypto/blake256 v1.1.0 h1:zPMNGQCm0g4QTY27fOCorQW7EryeQ/U0x++OzVrdms8=
 github.com/decred/dcrd/crypto/blake256 v1.1.0/go.mod h1:2OfgNZ5wDpcsFmHmCK5gZTPcCXqlm2ArzUIkw9czNJo=
-github.com/decred/dcrd/dcrec/secp256k1/v4 v4.3.0 h1:rpfIENRNNilwHwZeG5+P150SMrnNEcHYvcCuK6dPZSg=
-github.com/decred/dcrd/dcrec/secp256k1/v4 v4.3.0/go.mod h1:v57UDF4pDQJcEfFUCRop3lJL149eHGSe9Jvczhzjo/0=
+github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.0 h1:NMZiJj8QnKe1LgsbDayM4UoHwbvwDRwnI3hwNaAHRnc=
+github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.0/go.mod h1:ZXNYxsqcloTdSy/rNShjYzMhyjf0LaoftYK0p+A3h40=
 github.com/dogeorg/doge v0.1.1 h1:/pZt7M3YNiNu5w83wMuT52XMVDp8f4Jwku1ciQnx+TM=
 github.com/dogeorg/doge v0.1.1/go.mod h1:Q9/0XChJ8EA54OrhjkWm+ySEm0zZ5M7C38do/ZCnZuY=
+github.com/dogeorg/doge v0.1.2-0.20250818072130-2d2e0619e480 h1:qG7ZrJTWmwOBukju4hJ0bm6a9HGaLhIluRe0Y8DbmJI=
+github.com/dogeorg/doge v0.1.2-0.20250818072130-2d2e0619e480/go.mod h1:Q9/0XChJ8EA54OrhjkWm+ySEm0zZ5M7C38do/ZCnZuY=
 github.com/dogeorg/dogewalker v0.0.5 h1:KhpYitDX7a0ATQKM4EQ0s76P/oZLEabz3B3b6puHP3Y=
 github.com/dogeorg/dogewalker v0.0.5/go.mod h1:yrAKdKjGLzY0Rj/4MY7kjmvOFCDaZXbjlmX5pIaOuMA=
 github.com/dogeorg/governor v1.0.5 h1:XXdsKva4MvraaGZQo/8LqZIguIa3NkBSG454sIItfuo=

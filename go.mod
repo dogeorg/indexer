@@ -1,12 +1,13 @@
 module github.com/dogeorg/indexer
 
-go 1.22.5
+go 1.21
 
 require (
-	github.com/dogeorg/doge v0.1.2-0.20250818072130-2d2e0619e480
+	github.com/dogeorg/doge v0.1.2
 	github.com/dogeorg/dogewalker v0.0.6
 	github.com/dogeorg/governor v1.0.5
-	github.com/dogeorg/storelib v0.0.4
+	github.com/dogeorg/storelib v0.0.5
+	github.com/mattn/go-sqlite3 v1.14.28
 )
 
 require (
@@ -14,7 +15,6 @@ require (
 	github.com/decred/dcrd/crypto/blake256 v1.1.0 // indirect
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.0 // indirect
 	github.com/lib/pq v1.10.9 // indirect
-	github.com/mattn/go-sqlite3 v1.14.28 // indirect
 	github.com/mr-tron/base58 v1.2.0 // indirect
 	github.com/pebbe/zmq4 v1.2.9 // indirect
 )

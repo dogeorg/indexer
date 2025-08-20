@@ -4,7 +4,7 @@ go 1.22.5
 
 require (
 	github.com/dogeorg/doge v0.1.2-0.20250818072130-2d2e0619e480
-	github.com/dogeorg/dogewalker v0.0.5
+	github.com/dogeorg/dogewalker v0.0.6
 	github.com/dogeorg/governor v1.0.5
 	github.com/dogeorg/storelib v0.0.4
 )

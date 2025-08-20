@@ -205,7 +205,7 @@ func (s *IndexStore) UndoAbove(height int64) error {
 		return s.DBErr(err, "UndoAbove: delete tx")
 	}
 	// undo marking utxos spent.
-	_, err = s.Txn.Exec(`UPDATE utxo SET spent=NULL WHERE height > $1`, height)
+	_, err = s.Txn.Exec(`UPDATE utxo SET spent=NULL WHERE spent > $1`, height)
 	if err != nil {
 		return s.DBErr(err, "UndoAbove: unmark spent")
 	}

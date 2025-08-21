@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/hex"
 	"log"
+	"sync"
 	"time"
 
 	"github.com/dogeorg/doge"
@@ -17,8 +18,25 @@ const ONE_DOGE = 100_000_000        // 1 DOGE
 const DUST_LIMIT = ONE_DOGE / 100   // 0.01 DOGE
 
 const trimIntervalBlocks = 1000 // Trim UTXOs every N blocks
+const maxBlockHistory = 10      // Keep last 10 blocks in memory
 
 var Zeroes = [32]byte{}
+
+// BlockHistory represents a processed block for monitoring
+type BlockHistory struct {
+	Height         int64         `json:"height"`
+	Hash           string        `json:"hash"`
+	Timestamp      time.Time     `json:"timestamp"`
+	TxCount        int           `json:"tx_count"`
+	UTXOCreated    int           `json:"utxo_created"`
+	UTXOSpent      int           `json:"utxo_spent"`
+	ProcessingTime time.Duration `json:"processing_time_ms"`
+}
+
+// IndexerMonitor interface for accessing indexer state
+type IndexerMonitor interface {
+	GetBlockHistory() []BlockHistory
+}
 
 type Indexer struct {
 	governor.ServiceCtx
@@ -26,7 +44,17 @@ type Indexer struct {
 	db             spec.Store
 	blocks         chan walker.BlockOrUndo
 	trimSpentAfter int64
+
+	// In-memory block history for monitoring
+	blockHistory []BlockHistory
+	historyMutex sync.RWMutex
 }
+
+// Ensure Indexer implements governor.Service
+var _ governor.Service = (*Indexer)(nil)
+
+// Ensure Indexer implements IndexerMonitor
+var _ IndexerMonitor = (*Indexer)(nil)
 
 /*
  * NewIndexer creates an Indexer service that tracks the ChainState.
@@ -34,10 +62,11 @@ type Indexer struct {
  * `onlyScriptType` is an optional ScriptType to index (if this is 0,
  * all standard spendable UTXOs are indexed, including multisig.
  */
-func NewIndexer(db spec.Store, blocks chan walker.BlockOrUndo, trimSpentAfter int64) governor.Service {
+func NewIndexer(db spec.Store, blocks chan walker.BlockOrUndo, trimSpentAfter int64) *Indexer {
 	return &Indexer{_db: db, blocks: blocks, trimSpentAfter: trimSpentAfter}
 }
 
+// Run is the entry point for the Indexer service (called by Governor)
 func (i *Indexer) Run() {
 	i.db = i._db.WithCtx(i.Context) // bind to service context
 	trimCounter := int64(0)
@@ -56,6 +85,7 @@ func (i *Indexer) Run() {
 		}
 		if cmd.Block != nil {
 			// next block.
+			startTime := time.Now()
 			var removeUTXOs []spec.OutPointKey
 			var createUTXOs []spec.UTXO
 			for _, tx := range cmd.Block.Block.Tx {
@@ -111,6 +141,11 @@ func (i *Indexer) Run() {
 					i.Sleep(RETRY_DELAY)
 				}
 			}
+
+			// Record block in history
+			processingTime := time.Since(startTime)
+			i.recordBlockHistory(cmd.Height, cmd.Block.Hash, len(cmd.Block.Block.Tx), len(createUTXOs), len(removeUTXOs), processingTime)
+
 			log.Printf("[%v] %v DONE", cmd.Height, cmd.Block.Hash)
 		} else if cmd.Undo != nil {
 			log.Printf("[%v] undo to: %v", cmd.Undo.LastValidHeight, cmd.Undo.LastValidHash)
@@ -148,5 +183,40 @@ func (i *Indexer) Run() {
 				}
 			}
 		}
+	}
+}
+
+// GetBlockHistory returns a copy of the recent block history for monitoring
+func (i *Indexer) GetBlockHistory() []BlockHistory {
+	i.historyMutex.RLock()
+	defer i.historyMutex.RUnlock()
+
+	// Return a copy to avoid race conditions
+	history := make([]BlockHistory, len(i.blockHistory))
+	copy(history, i.blockHistory)
+	return history
+}
+
+// recordBlockHistory adds a block to the sliding window history
+func (i *Indexer) recordBlockHistory(height int64, hash string, txCount, utxoCreated, utxoSpent int, processingTime time.Duration) {
+	i.historyMutex.Lock()
+	defer i.historyMutex.Unlock()
+
+	block := BlockHistory{
+		Height:         height,
+		Hash:           hash,
+		Timestamp:      time.Now(),
+		TxCount:        txCount,
+		UTXOCreated:    utxoCreated,
+		UTXOSpent:      utxoSpent,
+		ProcessingTime: processingTime,
+	}
+
+	// Add to the beginning (most recent first)
+	i.blockHistory = append([]BlockHistory{block}, i.blockHistory...)
+
+	// Keep only the last maxBlockHistory blocks
+	if len(i.blockHistory) > maxBlockHistory {
+		i.blockHistory = i.blockHistory[:maxBlockHistory]
 	}
 }

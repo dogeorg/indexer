@@ -14,6 +14,9 @@ type StoreTx interface {
 	// SetResumePoint sets the hash to resume from.
 	SetResumePoint(hash []byte, height int64) error
 
+	// GetCurrentHeight gets the current block height from the resume point.
+	GetCurrentHeight() (height int64, err error)
+
 	// RemoveUTXOs marks UTXOs as spent at `height`
 	RemoveUTXOs(removeUTXOs []OutPointKey, height int64) error
 

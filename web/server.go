@@ -3,7 +3,6 @@ package web
 import (
 	"context"
 	"encoding/hex"
-	"fmt"
 	"log"
 	"net/http"
 	"time"
@@ -11,13 +10,16 @@ import (
 	"github.com/dogeorg/doge"
 	"github.com/dogeorg/doge/koinu"
 	"github.com/dogeorg/governor"
+	"github.com/dogeorg/indexer/index"
 	"github.com/dogeorg/indexer/spec"
 )
 
-func New(bind string, store spec.Store) governor.Service {
+func New(bind string, store spec.Store, indexer index.IndexerMonitor, corsOrigin string) governor.Service {
 	mux := http.NewServeMux()
 	a := &WebAPI{
-		_store: store,
+		_store:     store,
+		indexer:    indexer,
+		corsOrigin: corsOrigin,
 		srv: http.Server{
 			Addr:    bind,
 			Handler: mux,
@@ -27,15 +29,19 @@ func New(bind string, store spec.Store) governor.Service {
 	mux.HandleFunc("/health", a.healthCheck)
 	mux.HandleFunc("/balance", a.getBalance)
 	mux.HandleFunc("/utxo", a.getUtxo)
+	mux.HandleFunc("/height", a.getHeight)
+	mux.HandleFunc("/blocks", a.getRecentBlocks)
 
 	return a
 }
 
 type WebAPI struct {
 	governor.ServiceCtx
-	_store spec.Store
-	store  spec.Store
-	srv    http.Server
+	_store     spec.Store
+	store      spec.Store
+	indexer    index.IndexerMonitor
+	corsOrigin string
+	srv        http.Server
 }
 
 // called on any Goroutine
@@ -61,9 +67,9 @@ func (a *WebAPI) Run() {
 func (a *WebAPI) healthCheck(w http.ResponseWriter, r *http.Request) {
 	_, err := a.store.GetResumePoint()
 	if err != nil {
-		w.Write([]byte(fmt.Sprintf(`{"ok":false,"error":"%v"}`, err)))
+		sendError(w, 500, "error", err.Error(), "GET", a.corsOrigin)
 	} else {
-		w.Write([]byte(`{"ok":true}`))
+		sendJson(w, map[string]interface{}{"ok": true}, "GET", a.corsOrigin)
 	}
 }
 
@@ -73,16 +79,16 @@ func (a *WebAPI) getBalance(w http.ResponseWriter, r *http.Request) {
 	case http.MethodGet:
 		address := r.URL.Query().Get("address")
 		if address == "" {
-			sendError(w, 400, "bad-request", "missing 'address' in the URL", options)
+			sendError(w, 400, "bad-request", "missing 'address' in the URL", options, a.corsOrigin)
 			return
 		}
 		pubkeyHash, err := doge.Base58DecodeCheck(address)
 		if err != nil {
-			sendError(w, 400, "bad-request", "invalid Dogecoin address", options)
+			sendError(w, 400, "bad-request", "invalid Dogecoin address", options, a.corsOrigin)
 			return
 		}
 		if len(pubkeyHash) != 21 {
-			sendError(w, 400, "bad-request", "invalid Dogecoin address", options)
+			sendError(w, 400, "bad-request", "invalid Dogecoin address", options, a.corsOrigin)
 			return
 		}
 		kind := utxoKindFromVersionByte(pubkeyHash[0])
@@ -90,12 +96,12 @@ func (a *WebAPI) getBalance(w http.ResponseWriter, r *http.Request) {
 		bal, err := a.store.GetBalance(kind, hash, 6)
 		bal.Current = bal.Available + bal.Incoming
 		if err != nil {
-			sendError(w, 500, "error", err.Error(), options)
+			sendError(w, 500, "error", err.Error(), options, a.corsOrigin)
 		} else {
-			sendJson(w, bal, options)
+			sendJson(w, bal, options, a.corsOrigin)
 		}
 	case http.MethodOptions:
-		sendOptions(w, r, options)
+		sendOptions(w, r, options, a.corsOrigin)
 	}
 }
 
@@ -105,23 +111,23 @@ func (a *WebAPI) getUtxo(w http.ResponseWriter, r *http.Request) {
 	case http.MethodGet:
 		address := r.URL.Query().Get("address")
 		if address == "" {
-			sendError(w, 400, "bad-request", "missing 'address' in the URL", options)
+			sendError(w, 400, "bad-request", "missing 'address' in the URL", options, a.corsOrigin)
 			return
 		}
 		pubkeyHash, err := doge.Base58DecodeCheck(address)
 		if err != nil {
-			sendError(w, 400, "bad-request", "invalid Dogecoin address", options)
+			sendError(w, 400, "bad-request", "invalid Dogecoin address", options, a.corsOrigin)
 			return
 		}
 		if len(pubkeyHash) != 21 {
-			sendError(w, 400, "bad-request", "invalid Dogecoin address", options)
+			sendError(w, 400, "bad-request", "invalid Dogecoin address", options, a.corsOrigin)
 			return
 		}
 		kind := utxoKindFromVersionByte(pubkeyHash[0])
 		hash := pubkeyHash[1:]
 		list, err := a.store.FindUTXOs(kind, hash)
 		if err != nil {
-			sendError(w, 500, "error", err.Error(), options)
+			sendError(w, 500, "error", err.Error(), options, a.corsOrigin)
 		} else {
 			utxo := []UTXOItem{}
 			for _, u := range list {
@@ -133,10 +139,36 @@ func (a *WebAPI) getUtxo(w http.ResponseWriter, r *http.Request) {
 					Script: hex.EncodeToString(doge.ExpandScript(u.Type, u.Script)),
 				})
 			}
-			sendJson(w, UTXOResponse{UTXO: utxo}, options)
+			sendJson(w, UTXOResponse{UTXO: utxo}, options, a.corsOrigin)
 		}
 	case http.MethodOptions:
-		sendOptions(w, r, options)
+		sendOptions(w, r, options, a.corsOrigin)
+	}
+}
+
+func (a *WebAPI) getHeight(w http.ResponseWriter, r *http.Request) {
+	options := "GET, OPTIONS"
+	switch r.Method {
+	case http.MethodGet:
+		height, err := a.store.GetCurrentHeight()
+		if err != nil {
+			sendError(w, 500, "error", err.Error(), options, a.corsOrigin)
+		} else {
+			sendJson(w, map[string]interface{}{"height": height}, options, a.corsOrigin)
+		}
+	case http.MethodOptions:
+		sendOptions(w, r, options, a.corsOrigin)
+	}
+}
+
+func (a *WebAPI) getRecentBlocks(w http.ResponseWriter, r *http.Request) {
+	options := "GET, OPTIONS"
+	switch r.Method {
+	case http.MethodGet:
+		blocks := a.indexer.GetBlockHistory()
+		sendJson(w, map[string]interface{}{"blocks": blocks}, options, a.corsOrigin)
+	case http.MethodOptions:
+		sendOptions(w, r, options, a.corsOrigin)
 	}
 }
 

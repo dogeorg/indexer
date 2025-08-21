@@ -102,6 +102,20 @@ func (s *IndexStore) SetResumePoint(hash []byte, height int64) error {
 	return nil
 }
 
+// GetCurrentHeight gets the current block height from the resume point.
+func (s *IndexStore) GetCurrentHeight() (int64, error) {
+	row := s.Txn.QueryRow(`SELECT height FROM resume LIMIT 1`)
+	var height int64
+	err := row.Scan(&height)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return 0, nil // no blocks indexed yet
+		}
+		return 0, s.DBErr(err, "GetCurrentHeight")
+	}
+	return height, nil
+}
+
 // RemoveUTXOs marks UTXOs as spent at `height`
 func (s *IndexStore) RemoveUTXOs(removeUTXOs []spec.OutPointKey, height int64) error {
 	query, err := s.Txn.Prepare(`UPDATE utxo SET spent=$1 WHERE vout=$2 AND txid=(SELECT txid FROM tx WHERE hash=$3)`)

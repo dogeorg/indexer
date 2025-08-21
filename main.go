@@ -28,6 +28,7 @@ type Config struct {
 	zmqHost        string
 	zmqPort        int
 	bindAPI        string
+	corsOrigin     string
 	chainName      string
 	startingHeight int64
 }
@@ -43,12 +44,10 @@ func main() {
 	flag.StringVar(&config.rpcPass, "rpcpass", "dogecoin", "RPC password")
 	flag.StringVar(&config.zmqHost, "zmqhost", "127.0.0.1", "ZMQ host")
 	flag.IntVar(&config.zmqPort, "zmqport", 28332, "ZMQ port")
-	flag.StringVar(&config.bindAPI, "bindapi", "localhost:8888", "API bind address")
+	flag.StringVar(&config.bindAPI, "bindapi", "localhost:8000", "API bind address")
+	flag.StringVar(&config.corsOrigin, "cors-origin", "http://localhost:5173", "CORS allowed origin")
 	flag.StringVar(&config.chainName, "chain", "mainnet", "Chain Params (mainnet, testnet, regtest)")
 	flag.Int64Var(&config.startingHeight, "startingheight", 5830000, "Starting Height")
-
-	webPort := flag.String("webport", "8000", "Web port")
-	listenPort := flag.String("listenport", "8001", "Listen port")
 
 	flag.Parse()
 
@@ -62,13 +61,6 @@ func main() {
 		chain = &doge.DogeRegTestChain
 	default:
 		panic(errors.New("Unexpected chain: " + config.chainName))
-	}
-
-	if *webPort == "" {
-		*webPort = "8000"
-	}
-	if *listenPort == "" {
-		*listenPort = "8001"
 	}
 
 	gov := governor.New().CatchSignals().Restart(1 * time.Second)
@@ -119,10 +111,11 @@ func main() {
 	gov.Add("Walk", walkSvc)
 
 	// Index the chain.
-	gov.Add("Index", index.NewIndexer(db, blocks, MaxRollbackDepth))
+	indexer := index.NewIndexer(db, blocks, MaxRollbackDepth)
+	gov.Add("Index", indexer)
 
 	// REST API.
-	gov.Add("API", web.New(config.bindAPI, db))
+	gov.Add("API", web.New(config.bindAPI, db, indexer, config.corsOrigin))
 
 	// run services until interrupted.
 	gov.Start().WaitForShutdown()

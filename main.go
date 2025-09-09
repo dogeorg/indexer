@@ -39,8 +39,8 @@ func main() {
 	log.Printf("\n\n[Indexer] starting")
 
 	var config Config
-	flag.StringVar(&config.connStr, "dburl", getEnv("DBURL", "index.db"), "Database connection string")
-	flag.StringVar(&config.rpcHost, "rpchost", getEnv("DBURL", "127.0.0.1"), "RPC host")
+	flag.StringVar(&config.connStr, "dburl", getEnv("DB_URL", "index.db"), "Database connection string")
+	flag.StringVar(&config.rpcHost, "rpchost", getEnv("RPC_HOST", "127.0.0.1"), "RPC host")
 	flag.IntVar(&config.rpcPort, "rpcport", getEnvInt("RPC_PORT", 22555), "RPC port")
 	flag.StringVar(&config.rpcUser, "rpcuser", getEnv("RPC_USER", "dogecoin"), "RPC username")
 	flag.StringVar(&config.rpcPass, "rpcpass", getEnv("RPC_PASS", "dogecoin"), "RPC password")

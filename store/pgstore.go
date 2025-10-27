@@ -234,7 +234,8 @@ func (s *IndexStore) TrimSpentUTXOs(height int64) error {
 		return s.DBErr(err, "TrimRemoved")
 	}
 	// prune tx entries that no longer have any utxos
-	_, err = s.Txn.Exec(`DELETE FROM tx WHERE txid IN (SELECT t.txid FROM tx t LEFT OUTER JOIN utxo u ON t.txid = u.txid AND u.txid IS NULL)`)
+	// (delete all TX without a matching UTXO: after joining, UTXO-fields are NULL)
+	_, err = s.Txn.Exec(`DELETE FROM tx WHERE txid IN (SELECT t.txid FROM tx t LEFT OUTER JOIN utxo u ON t.txid = u.txid WHERE u.txid IS NULL)`)
 	if err != nil {
 		return s.DBErr(err, "TrimRemoved")
 	}

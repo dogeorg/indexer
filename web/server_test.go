@@ -98,16 +98,16 @@ func (m *MockStore) Transact(fn func(spec.StoreTx) error) error {
 }
 
 func seededSyncHeightCache(snapshot syncHeightSnapshot) *syncHeightCache {
-	if snapshot.BlocksHeight == nil || snapshot.HeadersHeight == nil || snapshot.UpdatedAt == nil {
+	if snapshot.CoreBlocksHeight == nil || snapshot.CoreHeadersHeight == nil || snapshot.CoreSyncUpdatedAt == nil {
 		return nil
 	}
 	return &syncHeightCache{
-		blocksHeight:  *snapshot.BlocksHeight,
-		headersHeight: *snapshot.HeadersHeight,
-		updatedAt:     *snapshot.UpdatedAt,
-		hasData:       true,
-		now:           func() time.Time { return *snapshot.UpdatedAt },
-		staleAfter:    syncHeightsStaleAfter,
+		coreBlocksHeight:  *snapshot.CoreBlocksHeight,
+		coreHeadersHeight: *snapshot.CoreHeadersHeight,
+		updatedAt:         *snapshot.CoreSyncUpdatedAt,
+		hasData:           true,
+		now:               func() time.Time { return *snapshot.CoreSyncUpdatedAt },
+		staleAfter:        syncHeightsStaleAfter,
 	}
 }
 
@@ -281,26 +281,26 @@ func TestGetHeight(t *testing.T) {
 			height:         123456,
 			heightErr:      nil,
 			expectedStatus: 200,
-			expectedBody:   `{"height":123456,"indexed_height":123456}`,
+			expectedBody:   `{"height":123456}`,
 		},
 		{
 			name:           "Zero height",
 			height:         0,
 			heightErr:      nil,
 			expectedStatus: 200,
-			expectedBody:   `{"height":0,"indexed_height":0}`,
+			expectedBody:   `{"height":0}`,
 		},
 		{
 			name:   "Includes cached sync heights",
 			height: 123456,
 			snapshot: syncHeightSnapshot{
-				BlocksHeight:  &blocksHeight,
-				HeadersHeight: &headersHeight,
-				UpdatedAt:     &syncUpdatedAt,
+				CoreBlocksHeight:  &blocksHeight,
+				CoreHeadersHeight: &headersHeight,
+				CoreSyncUpdatedAt: &syncUpdatedAt,
 			},
 			heightErr:      nil,
 			expectedStatus: 200,
-			expectedBody:   `{"height":123456,"indexed_height":123456,"blocks_height":200000,"headers_height":200100,"sync_updated_at":"2026-06-01T04:00:00Z"}`,
+			expectedBody:   `{"height":123456,"core_blocks_height":200000,"core_headers_height":200100,"core_sync_updated_at":"2026-06-01T04:00:00Z"}`,
 		},
 		{
 			name:           "Database error",

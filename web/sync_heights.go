@@ -16,9 +16,9 @@ type coreRequestClient interface {
 }
 
 type syncHeightSnapshot struct {
-	BlocksHeight  *int64
-	HeadersHeight *int64
-	UpdatedAt     *time.Time
+	CoreBlocksHeight  *int64
+	CoreHeadersHeight *int64
+	CoreSyncUpdatedAt *time.Time
 }
 
 type syncHeightCache struct {
@@ -27,11 +27,11 @@ type syncHeightCache struct {
 	staleAfter      time.Duration
 	now             func() time.Time
 
-	mu            sync.RWMutex
-	blocksHeight  int64
-	headersHeight int64
-	updatedAt     time.Time
-	hasData       bool
+	mu                sync.RWMutex
+	coreBlocksHeight  int64
+	coreHeadersHeight int64
+	updatedAt         time.Time
+	hasData           bool
 }
 
 func newSyncHeightCache(client coreRequestClient) *syncHeightCache {
@@ -81,14 +81,14 @@ func (c *syncHeightCache) snapshot() syncHeightSnapshot {
 		return syncHeightSnapshot{}
 	}
 
-	blocksHeight := c.blocksHeight
-	headersHeight := c.headersHeight
+	coreBlocksHeight := c.coreBlocksHeight
+	coreHeadersHeight := c.coreHeadersHeight
 	updatedAt := c.updatedAt.UTC()
 
 	return syncHeightSnapshot{
-		BlocksHeight:  &blocksHeight,
-		HeadersHeight: &headersHeight,
-		UpdatedAt:     &updatedAt,
+		CoreBlocksHeight:  &coreBlocksHeight,
+		CoreHeadersHeight: &coreHeadersHeight,
+		CoreSyncUpdatedAt: &updatedAt,
 	}
 }
 
@@ -106,8 +106,8 @@ func (c *syncHeightCache) refresh(ctx context.Context) {
 	}
 
 	c.mu.Lock()
-	c.blocksHeight = result.Blocks
-	c.headersHeight = result.Headers
+	c.coreBlocksHeight = result.Blocks
+	c.coreHeadersHeight = result.Headers
 	c.updatedAt = c.now()
 	c.hasData = true
 	c.mu.Unlock()

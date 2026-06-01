@@ -35,7 +35,7 @@ func TestSyncHeightCacheSnapshotUnavailableWithoutData(t *testing.T) {
 	cache := newSyncHeightCache(fakeCoreRequestClient{})
 
 	snapshot := cache.snapshot()
-	if snapshot.BlocksHeight != nil || snapshot.HeadersHeight != nil || snapshot.UpdatedAt != nil {
+	if snapshot.CoreBlocksHeight != nil || snapshot.CoreHeadersHeight != nil || snapshot.CoreSyncUpdatedAt != nil {
 		t.Fatalf("expected empty snapshot, got %+v", snapshot)
 	}
 }
@@ -48,13 +48,13 @@ func TestSyncHeightCacheRefreshStoresFreshData(t *testing.T) {
 	cache.refresh(context.Background())
 
 	snapshot := cache.snapshot()
-	if snapshot.BlocksHeight == nil || *snapshot.BlocksHeight != 10 {
+	if snapshot.CoreBlocksHeight == nil || *snapshot.CoreBlocksHeight != 10 {
 		t.Fatalf("unexpected blocks height: %+v", snapshot)
 	}
-	if snapshot.HeadersHeight == nil || *snapshot.HeadersHeight != 12 {
+	if snapshot.CoreHeadersHeight == nil || *snapshot.CoreHeadersHeight != 12 {
 		t.Fatalf("unexpected headers height: %+v", snapshot)
 	}
-	if snapshot.UpdatedAt == nil || !snapshot.UpdatedAt.Equal(now) {
+	if snapshot.CoreSyncUpdatedAt == nil || !snapshot.CoreSyncUpdatedAt.Equal(now) {
 		t.Fatalf("unexpected updated at: %+v", snapshot)
 	}
 }
@@ -63,13 +63,13 @@ func TestSyncHeightCacheSnapshotHidesStaleData(t *testing.T) {
 	now := time.Date(2026, time.June, 1, 12, 3, 0, 0, time.UTC)
 	cache := newSyncHeightCache(fakeCoreRequestClient{})
 	cache.now = func() time.Time { return now }
-	cache.blocksHeight = 10
-	cache.headersHeight = 12
+	cache.coreBlocksHeight = 10
+	cache.coreHeadersHeight = 12
 	cache.updatedAt = now.Add(-3 * time.Minute)
 	cache.hasData = true
 
 	snapshot := cache.snapshot()
-	if snapshot.BlocksHeight != nil || snapshot.HeadersHeight != nil || snapshot.UpdatedAt != nil {
+	if snapshot.CoreBlocksHeight != nil || snapshot.CoreHeadersHeight != nil || snapshot.CoreSyncUpdatedAt != nil {
 		t.Fatalf("expected stale snapshot to be hidden, got %+v", snapshot)
 	}
 }
@@ -78,18 +78,18 @@ func TestSyncHeightCacheRefreshKeepsLastSuccessfulDataOnFailure(t *testing.T) {
 	now := time.Date(2026, time.June, 1, 12, 0, 0, 0, time.UTC)
 	cache := newSyncHeightCache(fakeCoreRequestClient{err: errors.New("boom")})
 	cache.now = func() time.Time { return now }
-	cache.blocksHeight = 10
-	cache.headersHeight = 12
+	cache.coreBlocksHeight = 10
+	cache.coreHeadersHeight = 12
 	cache.updatedAt = now.Add(-time.Minute)
 	cache.hasData = true
 
 	cache.refresh(context.Background())
 
 	snapshot := cache.snapshot()
-	if snapshot.BlocksHeight == nil || *snapshot.BlocksHeight != 10 {
+	if snapshot.CoreBlocksHeight == nil || *snapshot.CoreBlocksHeight != 10 {
 		t.Fatalf("expected last successful blocks height to remain, got %+v", snapshot)
 	}
-	if snapshot.HeadersHeight == nil || *snapshot.HeadersHeight != 12 {
+	if snapshot.CoreHeadersHeight == nil || *snapshot.CoreHeadersHeight != 12 {
 		t.Fatalf("expected last successful headers height to remain, got %+v", snapshot)
 	}
 }

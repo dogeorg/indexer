@@ -38,12 +38,12 @@ func New(bind string, store spec.Store, indexer index.IndexerMonitor, coreClient
 
 type WebAPI struct {
 	governor.ServiceCtx
-	_store     spec.Store
-	store      spec.Store
-	indexer    index.IndexerMonitor
+	_store      spec.Store
+	store       spec.Store
+	indexer     index.IndexerMonitor
 	syncHeights *syncHeightCache
-	corsOrigin string
-	srv        http.Server
+	corsOrigin  string
+	srv         http.Server
 }
 
 // called on any Goroutine
@@ -160,14 +160,13 @@ func (a *WebAPI) getHeight(w http.ResponseWriter, r *http.Request) {
 			sendError(w, 500, "error", err.Error(), options, a.corsOrigin)
 		} else {
 			response := HeightResponse{
-				Height:        height,
-				IndexedHeight: height,
+				Height: height,
 			}
 			if a.syncHeights != nil {
 				snapshot := a.syncHeights.snapshot()
-				response.BlocksHeight = snapshot.BlocksHeight
-				response.HeadersHeight = snapshot.HeadersHeight
-				response.SyncUpdatedAt = snapshot.UpdatedAt
+				response.CoreBlocksHeight = snapshot.CoreBlocksHeight
+				response.CoreHeadersHeight = snapshot.CoreHeadersHeight
+				response.CoreSyncUpdatedAt = snapshot.CoreSyncUpdatedAt
 			}
 			sendJson(w, response, options, a.corsOrigin)
 		}
@@ -192,11 +191,10 @@ type UTXOResponse struct {
 }
 
 type HeightResponse struct {
-	Height        int64      `json:"height"`
-	IndexedHeight int64      `json:"indexed_height"`
-	BlocksHeight  *int64     `json:"blocks_height,omitempty"`
-	HeadersHeight *int64     `json:"headers_height,omitempty"`
-	SyncUpdatedAt *time.Time `json:"sync_updated_at,omitempty"`
+	Height            int64      `json:"height"`
+	CoreBlocksHeight  *int64     `json:"core_blocks_height,omitempty"`
+	CoreHeadersHeight *int64     `json:"core_headers_height,omitempty"`
+	CoreSyncUpdatedAt *time.Time `json:"core_sync_updated_at,omitempty"`
 }
 
 type UTXOItem struct {

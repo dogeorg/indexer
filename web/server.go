@@ -14,12 +14,13 @@ import (
 	"github.com/dogeorg/indexer/spec"
 )
 
-func New(bind string, store spec.Store, indexer index.IndexerMonitor, corsOrigin string) governor.Service {
+func New(bind string, store spec.Store, indexer index.IndexerMonitor, coreClient coreRequestClient, corsOrigin string) governor.Service {
 	mux := http.NewServeMux()
 	a := &WebAPI{
-		_store:     store,
-		indexer:    indexer,
-		corsOrigin: corsOrigin,
+		_store:      store,
+		indexer:     indexer,
+		syncHeights: newSyncHeightCache(coreClient),
+		corsOrigin:  corsOrigin,
 		srv: http.Server{
 			Addr:    bind,
 			Handler: mux,
@@ -40,6 +41,7 @@ type WebAPI struct {
 	_store     spec.Store
 	store      spec.Store
 	indexer    index.IndexerMonitor
+	syncHeights *syncHeightCache
 	corsOrigin string
 	srv        http.Server
 }
@@ -58,6 +60,9 @@ func (a *WebAPI) Stop() {
 // goroutine
 func (a *WebAPI) Run() {
 	a.store = a._store.WithCtx(a.Context) // Service Context is first available here
+	if a.syncHeights != nil {
+		go a.syncHeights.run(a.Context)
+	}
 	log.Printf("HTTP server listening on: %v\n", a.srv.Addr)
 	if err := a.srv.ListenAndServe(); err != http.ErrServerClosed { // blocking call
 		log.Printf("HTTP server: %v\n", err)
@@ -154,7 +159,17 @@ func (a *WebAPI) getHeight(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			sendError(w, 500, "error", err.Error(), options, a.corsOrigin)
 		} else {
-			sendJson(w, map[string]interface{}{"height": height}, options, a.corsOrigin)
+			response := HeightResponse{
+				Height:        height,
+				IndexedHeight: height,
+			}
+			if a.syncHeights != nil {
+				snapshot := a.syncHeights.snapshot()
+				response.BlocksHeight = snapshot.BlocksHeight
+				response.HeadersHeight = snapshot.HeadersHeight
+				response.SyncUpdatedAt = snapshot.UpdatedAt
+			}
+			sendJson(w, response, options, a.corsOrigin)
 		}
 	case http.MethodOptions:
 		sendOptions(w, r, options, a.corsOrigin)
@@ -175,6 +190,15 @@ func (a *WebAPI) getRecentBlocks(w http.ResponseWriter, r *http.Request) {
 type UTXOResponse struct {
 	UTXO []UTXOItem `json:"utxo"`
 }
+
+type HeightResponse struct {
+	Height        int64      `json:"height"`
+	IndexedHeight int64      `json:"indexed_height"`
+	BlocksHeight  *int64     `json:"blocks_height,omitempty"`
+	HeadersHeight *int64     `json:"headers_height,omitempty"`
+	SyncUpdatedAt *time.Time `json:"sync_updated_at,omitempty"`
+}
+
 type UTXOItem struct {
 	TxID   string      `json:"tx"`     // hex-encoded transaction ID (byte-reversed)
 	VOut   uint32      `json:"vout"`   // transaction output number

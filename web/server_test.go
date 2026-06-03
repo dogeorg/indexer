@@ -10,10 +10,15 @@ import (
 	"time"
 
 	"github.com/dogeorg/doge"
-	"github.com/dogeorg/doge/koinu"
 	"github.com/dogeorg/indexer/index"
 	"github.com/dogeorg/indexer/spec"
 )
+
+func bigKoinu(value int64) spec.BigKoinu {
+	var amount spec.BigKoinu
+	_ = amount.Scan(value)
+	return amount
+}
 
 // MockStore implements spec.Store for testing
 type MockStore struct {
@@ -331,10 +336,9 @@ func TestGetHeightOptions(t *testing.T) {
 func TestGetBalance(t *testing.T) {
 	validAddress := "D7nTLrBUiso28mNBj8MyHoyjdFypz3NzRS"
 	validBalance := spec.Balance{
-		Available: koinu.Koinu(100000000), // 1.0 DOGE in satoshis
-		Incoming:  koinu.Koinu(50000000),  // 0.5 DOGE in satoshis
-		Outgoing:  koinu.Koinu(0),
-		Current:   koinu.Koinu(150000000), // 1.5 DOGE in satoshis
+		Available: bigKoinu(100000000), // 1.0 DOGE in koinu
+		Incoming:  bigKoinu(50000000),  // 0.5 DOGE in koinu
+		Outgoing:  bigKoinu(0),
 	}
 
 	tests := []struct {

@@ -2,12 +2,13 @@ package store_test
 
 import (
 	"context"
+	"os"
+	"strings"
 	"testing"
 
 	_ "github.com/mattn/go-sqlite3"
 
 	"github.com/dogeorg/doge"
-	"github.com/dogeorg/doge/koinu"
 	"github.com/dogeorg/indexer/spec"
 	idxstore "github.com/dogeorg/indexer/store"
 )
@@ -18,12 +19,64 @@ func newTestStore(t *testing.T) (spec.Store, func()) {
 
 	// Use a unique in-memory database for each test to ensure isolation
 	// Using ":memory:" creates a temporary database that's isolated per connection
-	db, err := idxstore.NewIndexStore(":memory:", ctx)
+	db, err := idxstore.NewIndexStore(":memory:", ctx, false)
 	if err != nil {
 		t.Fatalf("NewIndexStore: %v", err)
 	}
 
 	return db, func() {}
+}
+
+func newCachedBalanceTestStore(t *testing.T) (spec.Store, func()) {
+	t.Helper()
+	ctx := context.Background()
+	dsn := postgresTestDSN(t)
+	resetPostgresTestDatabase(t, dsn)
+
+	db, err := idxstore.NewIndexStore(dsn, ctx, true)
+	if err != nil {
+		t.Fatalf("NewIndexStore: %v", err)
+	}
+
+	return db, func() {}
+}
+
+func postgresTestDSN(t *testing.T) string {
+	t.Helper()
+	dsn := os.Getenv("INDEXER_POSTGRES_TEST_DSN")
+	if dsn == "" {
+		t.Skip("set INDEXER_POSTGRES_TEST_DSN to run Postgres balance-cache integration tests")
+	}
+	return dsn
+}
+
+func resetPostgresTestDatabase(t *testing.T, dsn string) {
+	t.Helper()
+	db, err := idxstore.NewIndexStore(dsn, context.Background(), false)
+	if err != nil {
+		t.Fatalf("reset NewIndexStore: %v", err)
+	}
+	defer db.Close()
+
+	indexStore, ok := db.(*idxstore.IndexStore)
+	if !ok {
+		t.Fatalf("reset unexpected store type %T", db)
+	}
+	_, err = indexStore.RawDB.Exec(`DELETE FROM balance_meta; DELETE FROM balance; DELETE FROM utxo; DELETE FROM tx; DELETE FROM resume`)
+	if err != nil {
+		t.Fatalf("reset test database: %v", err)
+	}
+}
+
+func TestPGStore_CacheBalancesRequiresPostgres(t *testing.T) {
+	db, err := idxstore.NewIndexStore(":memory:", context.Background(), true)
+	if err == nil {
+		db.Close()
+		t.Fatal("NewIndexStore succeeded with SQLite cache, want error")
+	}
+	if !strings.Contains(err.Error(), "requires a Postgres database") {
+		t.Fatalf("error = %q, want Postgres requirement", err)
+	}
 }
 
 func TestPGStore_ResumePoint(t *testing.T) {
@@ -121,8 +174,8 @@ func TestPGStore_UTXO_Create_Remove_Find_Balance(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetBalance: %v", err)
 	}
-	if bal.Available != koinu.Koinu(3000) || bal.Incoming != 0 || bal.Outgoing != 0 {
-		t.Fatalf("Balance after create = {A:%d I:%d O:%d}, want {A:3000 I:0 O:0}", bal.Available, bal.Incoming, bal.Outgoing)
+	if !bal.Available.Equal(amount(3000)) || !bal.Incoming.Equal(amount(0)) || !bal.Outgoing.Equal(amount(0)) {
+		t.Fatalf("Balance after create = {A:%s I:%s O:%s}, want {A:3000 I:0 O:0}", bal.Available, bal.Incoming, bal.Outgoing)
 	}
 
 	// Spend utxoA at height 106, set head to 106 so it's counted as Outgoing with 0 conf
@@ -151,8 +204,8 @@ func TestPGStore_UTXO_Create_Remove_Find_Balance(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetBalance (after remove): %v", err)
 	}
-	if bal.Available != koinu.Koinu(2000) || bal.Incoming != 0 || bal.Outgoing != koinu.Koinu(1000) {
-		t.Fatalf("Balance after remove = {A:%d I:%d O:%d}, want {A:2000 I:0 O:1000}", bal.Available, bal.Incoming, bal.Outgoing)
+	if !bal.Available.Equal(amount(2000)) || !bal.Incoming.Equal(amount(0)) || !bal.Outgoing.Equal(amount(1000)) {
+		t.Fatalf("Balance after remove = {A:%s I:%s O:%s}, want {A:2000 I:0 O:1000}", bal.Available, bal.Incoming, bal.Outgoing)
 	}
 }
 
@@ -403,11 +456,11 @@ func TestPGStore_Balance_Confirmations(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetBalance (6 conf): %v", err)
 	}
-	if bal.Available != 0 {
-		t.Fatalf("Balance with 6 conf: Available = %d, want 0", bal.Available)
+	if !bal.Available.Equal(amount(0)) {
+		t.Fatalf("Balance with 6 conf: Available = %s, want 0", bal.Available)
 	}
-	if bal.Incoming != koinu.Koinu(1000) {
-		t.Fatalf("Balance with 6 conf: Incoming = %d, want 1000", bal.Incoming)
+	if !bal.Incoming.Equal(amount(1000)) {
+		t.Fatalf("Balance with 6 conf: Incoming = %s, want 1000", bal.Incoming)
 	}
 
 	// With 0 confirmations, available (height 100 < 105-0 = 105)
@@ -415,8 +468,8 @@ func TestPGStore_Balance_Confirmations(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetBalance (0 conf): %v", err)
 	}
-	if bal.Available != koinu.Koinu(1000) {
-		t.Fatalf("Balance with 0 conf = %d Available, want 1000", bal.Available)
+	if !bal.Available.Equal(amount(1000)) {
+		t.Fatalf("Balance with 0 conf = %s Available, want 1000", bal.Available)
 	}
 
 	// Move head to 107
@@ -431,8 +484,8 @@ func TestPGStore_Balance_Confirmations(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetBalance (6 conf, head 107): %v", err)
 	}
-	if bal.Available != koinu.Koinu(1000) {
-		t.Fatalf("Balance with 6 conf at head 107 = %d Available, want 1000", bal.Available)
+	if !bal.Available.Equal(amount(1000)) {
+		t.Fatalf("Balance with 6 conf at head 107 = %s Available, want 1000", bal.Available)
 	}
 
 	// Create B and C at heights that will be "Incoming" with 6 conf
@@ -458,11 +511,11 @@ func TestPGStore_Balance_Confirmations(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetBalance (6 conf, complex): %v", err)
 	}
-	if bal.Available != koinu.Koinu(1000) {
-		t.Fatalf("Available = %d, want 1000", bal.Available)
+	if !bal.Available.Equal(amount(1000)) {
+		t.Fatalf("Available = %s, want 1000", bal.Available)
 	}
-	if bal.Incoming != koinu.Koinu(5000) {
-		t.Fatalf("Incoming = %d, want 5000", bal.Incoming)
+	if !bal.Incoming.Equal(amount(5000)) {
+		t.Fatalf("Incoming = %s, want 5000", bal.Incoming)
 	}
 
 	// Spend A at height 111
@@ -483,14 +536,14 @@ func TestPGStore_Balance_Confirmations(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetBalance (after spend): %v", err)
 	}
-	if bal.Available != 0 {
-		t.Fatalf("Available = %d, want 0", bal.Available)
+	if !bal.Available.Equal(amount(0)) {
+		t.Fatalf("Available = %s, want 0", bal.Available)
 	}
-	if bal.Incoming != koinu.Koinu(5000) {
-		t.Fatalf("Incoming = %d, want 5000", bal.Incoming)
+	if !bal.Incoming.Equal(amount(5000)) {
+		t.Fatalf("Incoming = %s, want 5000", bal.Incoming)
 	}
-	if bal.Outgoing != koinu.Koinu(1000) {
-		t.Fatalf("Outgoing = %d, want 1000", bal.Outgoing)
+	if !bal.Outgoing.Equal(amount(1000)) {
+		t.Fatalf("Outgoing = %s, want 1000", bal.Outgoing)
 	}
 }
 
@@ -564,33 +617,285 @@ func TestPGStore_DifferentScriptTypes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetBalance P2PKH: %v", err)
 	}
-	if bal.Available != koinu.Koinu(1000) {
-		t.Fatalf("Balance P2PKH = %d, want 1000", bal.Available)
+	if !bal.Available.Equal(amount(1000)) {
+		t.Fatalf("Balance P2PKH = %s, want 1000", bal.Available)
 	}
 
 	bal, err = db.GetBalance(doge.ScriptTypeP2SH, addrP2SH, 0)
 	if err != nil {
 		t.Fatalf("GetBalance P2SH: %v", err)
 	}
-	if bal.Available != koinu.Koinu(2000) {
-		t.Fatalf("Balance P2SH = %d, want 2000", bal.Available)
+	if !bal.Available.Equal(amount(2000)) {
+		t.Fatalf("Balance P2SH = %s, want 2000", bal.Available)
 	}
 
 	bal, err = db.GetBalance(doge.ScriptTypeP2PK, addrP2PK, 0)
 	if err != nil {
 		t.Fatalf("GetBalance P2PK: %v", err)
 	}
-	if bal.Available != koinu.Koinu(3000) {
-		t.Fatalf("Balance P2PK = %d, want 3000", bal.Available)
+	if !bal.Available.Equal(amount(3000)) {
+		t.Fatalf("Balance P2PK = %s, want 3000", bal.Available)
 	}
 
 	bal, err = db.GetBalance(doge.ScriptTypeP2PKHW, addrP2PKHW, 0)
 	if err != nil {
 		t.Fatalf("GetBalance P2PKHW: %v", err)
 	}
-	if bal.Available != koinu.Koinu(4000) {
-		t.Fatalf("Balance P2PKHW = %d, want 4000", bal.Available)
+	if !bal.Available.Equal(amount(4000)) {
+		t.Fatalf("Balance P2PKHW = %s, want 4000", bal.Available)
 	}
+}
+
+func TestPGStore_CachedBalanceParity(t *testing.T) {
+	base, stopBase := newTestStore(t)
+	defer stopBase()
+	fast, stopFast := newCachedBalanceTestStore(t)
+	defer stopFast()
+
+	kind := doge.ScriptTypeP2PKH
+	addr := bytesOf(0x72, 20)
+	utxoA := spec.UTXO{TxID: bytesOf(0xA1, 32), VOut: 0, Value: 1000, Type: kind, Script: addr}
+	utxoB := spec.UTXO{TxID: bytesOf(0xB2, 32), VOut: 0, Value: 2000, Type: kind, Script: addr}
+	stores := []spec.Store{base, fast}
+
+	runOnBoth := func(name string, fn func(spec.StoreTx) error) {
+		t.Helper()
+		for _, db := range stores {
+			if err := db.Transact(fn); err != nil {
+				t.Fatalf("%s: %v", name, err)
+			}
+		}
+		assertBalanceParity(t, base, fast, kind, addr, 6)
+	}
+
+	runOnBoth("create incoming UTXO", func(tx spec.StoreTx) error {
+		if err := tx.CreateUTXOs([]spec.UTXO{utxoA}, 100); err != nil {
+			return err
+		}
+		return tx.SetResumePoint(bytesOf(0x11, 32), 105)
+	})
+
+	runOnBoth("advance confirmations", func(tx spec.StoreTx) error {
+		return tx.SetResumePoint(bytesOf(0x22, 32), 107)
+	})
+
+	runOnBoth("create another incoming UTXO", func(tx spec.StoreTx) error {
+		if err := tx.CreateUTXOs([]spec.UTXO{utxoB}, 106); err != nil {
+			return err
+		}
+		return tx.SetResumePoint(bytesOf(0x33, 32), 110)
+	})
+
+	runOnBoth("spend recently confirmed UTXO", func(tx spec.StoreTx) error {
+		if err := tx.RemoveUTXOs([]spec.OutPointKey{spec.OutPoint(utxoA.TxID, utxoA.VOut)}, 111); err != nil {
+			return err
+		}
+		return tx.SetResumePoint(bytesOf(0x44, 32), 111)
+	})
+
+	runOnBoth("rebuild after reorg", func(tx spec.StoreTx) error {
+		if err := tx.UndoAbove(106); err != nil {
+			return err
+		}
+		return tx.SetResumePoint(bytesOf(0x55, 32), 106)
+	})
+}
+
+func TestPGStore_CachedBalanceFallsBackForUncachedScriptKind(t *testing.T) {
+	base, stopBase := newTestStore(t)
+	defer stopBase()
+	fast, stopFast := newCachedBalanceTestStore(t)
+	defer stopFast()
+
+	p2pk := spec.UTXO{TxID: bytesOf(0x88, 32), VOut: 0, Value: 2000, Type: doge.ScriptTypeP2PK, Script: bytesOf(0x44, 20)}
+
+	for _, db := range []spec.Store{base, fast} {
+		if err := db.Transact(func(tx spec.StoreTx) error {
+			if err := tx.CreateUTXOs([]spec.UTXO{p2pk}, 100); err != nil {
+				return err
+			}
+			return tx.SetResumePoint(bytesOf(0xEE, 32), 107)
+		}); err != nil {
+			t.Fatalf("CreateUTXOs/SetResumePoint: %v", err)
+		}
+	}
+
+	assertBalanceParity(t, base, fast, p2pk.Type, p2pk.Script, 6)
+}
+
+func TestPGStore_CachedBalancePreservesCustomConfirmations(t *testing.T) {
+	db, stop := newCachedBalanceTestStore(t)
+	defer stop()
+
+	kind := doge.ScriptTypeP2PKH
+	addr := bytesOf(0x82, 20)
+	utxo := spec.UTXO{TxID: bytesOf(0xA8, 32), VOut: 0, Value: 1000, Type: kind, Script: addr}
+
+	if err := db.Transact(func(tx spec.StoreTx) error {
+		if err := tx.CreateUTXOs([]spec.UTXO{utxo}, 100); err != nil {
+			return err
+		}
+		return tx.SetResumePoint(bytesOf(0x18, 32), 105)
+	}); err != nil {
+		t.Fatalf("CreateUTXOs/SetResumePoint: %v", err)
+	}
+
+	bal, err := db.GetBalance(kind, addr, 0)
+	if err != nil {
+		t.Fatalf("GetBalance(0): %v", err)
+	}
+	if !bal.Available.Equal(amount(1000)) || !bal.Incoming.Equal(amount(0)) || !bal.Outgoing.Equal(amount(0)) {
+		t.Fatalf("GetBalance(0) = {A:%s I:%s O:%s}, want {A:1000 I:0 O:0}", bal.Available, bal.Incoming, bal.Outgoing)
+	}
+
+	bal, err = db.GetBalance(kind, addr, 6)
+	if err != nil {
+		t.Fatalf("GetBalance(6): %v", err)
+	}
+	if !bal.Available.Equal(amount(0)) || !bal.Incoming.Equal(amount(1000)) || !bal.Outgoing.Equal(amount(0)) {
+		t.Fatalf("GetBalance(6) = {A:%s I:%s O:%s}, want {A:0 I:1000 O:0}", bal.Available, bal.Incoming, bal.Outgoing)
+	}
+}
+
+func TestPGStore_CachedBalanceBootstrapExistingDB(t *testing.T) {
+	ctx := context.Background()
+	dsn := postgresTestDSN(t)
+	resetPostgresTestDatabase(t, dsn)
+
+	db, err := idxstore.NewIndexStore(dsn, ctx, false)
+	if err != nil {
+		t.Fatalf("NewIndexStore: %v", err)
+	}
+
+	kind := doge.ScriptTypeP2PKH
+	addr := bytesOf(0x92, 20)
+	utxoA := spec.UTXO{TxID: bytesOf(0x19, 32), VOut: 0, Value: 1000, Type: kind, Script: addr}
+	utxoB := spec.UTXO{TxID: bytesOf(0x29, 32), VOut: 0, Value: 2000, Type: kind, Script: addr}
+
+	if err := db.Transact(func(tx spec.StoreTx) error {
+		if err := tx.CreateUTXOs([]spec.UTXO{utxoA}, 100); err != nil {
+			return err
+		}
+		return tx.SetResumePoint(bytesOf(0x31, 32), 105)
+	}); err != nil {
+		t.Fatalf("Create A: %v", err)
+	}
+	if err := db.Transact(func(tx spec.StoreTx) error {
+		if err := tx.CreateUTXOs([]spec.UTXO{utxoB}, 106); err != nil {
+			return err
+		}
+		return tx.SetResumePoint(bytesOf(0x32, 32), 110)
+	}); err != nil {
+		t.Fatalf("Create B: %v", err)
+	}
+	if err := db.Transact(func(tx spec.StoreTx) error {
+		if err := tx.RemoveUTXOs([]spec.OutPointKey{spec.OutPoint(utxoA.TxID, utxoA.VOut)}, 111); err != nil {
+			return err
+		}
+		return tx.SetResumePoint(bytesOf(0x33, 32), 111)
+	}); err != nil {
+		t.Fatalf("Spend A: %v", err)
+	}
+	db.Close()
+
+	db, err = idxstore.NewIndexStore(dsn, ctx, true)
+	if err != nil {
+		t.Fatalf("NewIndexStore: %v", err)
+	}
+	defer db.Close()
+
+	bal, err := db.GetBalance(kind, addr, 6)
+	if err != nil {
+		t.Fatalf("GetBalance: %v", err)
+	}
+	if !bal.Available.Equal(amount(0)) || !bal.Incoming.Equal(amount(2000)) || !bal.Outgoing.Equal(amount(1000)) {
+		t.Fatalf("GetBalance = {A:%s I:%s O:%s}, want {A:0 I:2000 O:1000}", bal.Available, bal.Incoming, bal.Outgoing)
+	}
+}
+
+func TestPGStore_BalanceOverflow_UncachedAndCached(t *testing.T) {
+	dsn := postgresTestDSN(t)
+	resetPostgresTestDatabase(t, dsn)
+
+	base, err := idxstore.NewIndexStore(dsn, context.Background(), false)
+	if err != nil {
+		t.Fatalf("NewIndexStore: %v", err)
+	}
+
+	kind := doge.ScriptTypeP2PKH
+	addr := bytesOf(0xA4, 20)
+	largeValue := int64(1 << 62)
+	wantTotal := parseBigKoinu(t, "9223372036854775808")
+
+	utxos := []spec.UTXO{
+		{TxID: bytesOf(0x41, 32), VOut: 0, Value: largeValue, Type: kind, Script: addr},
+		{TxID: bytesOf(0x42, 32), VOut: 0, Value: largeValue, Type: kind, Script: addr},
+	}
+
+	if err := base.Transact(func(tx spec.StoreTx) error {
+		if err := tx.CreateUTXOs(utxos, 100); err != nil {
+			return err
+		}
+		return tx.SetResumePoint(bytesOf(0x43, 32), 107)
+	}); err != nil {
+		t.Fatalf("CreateUTXOs/SetResumePoint: %v", err)
+	}
+
+	bal, err := base.GetBalance(kind, addr, 6)
+	if err != nil {
+		t.Fatalf("uncached GetBalance: %v", err)
+	}
+	if !bal.Available.Equal(wantTotal) || !bal.Incoming.Equal(amount(0)) || !bal.Outgoing.Equal(amount(0)) {
+		t.Fatalf("uncached GetBalance = {A:%s I:%s O:%s}, want {A:%s I:0 O:0}", bal.Available, bal.Incoming, bal.Outgoing, wantTotal)
+	}
+	base.Close()
+
+	fast, err := idxstore.NewIndexStore(dsn, context.Background(), true)
+	if err != nil {
+		t.Fatalf("NewIndexStore: %v", err)
+	}
+	defer fast.Close()
+
+	cached, err := fast.GetBalance(kind, addr, 6)
+	if err != nil {
+		t.Fatalf("cached GetBalance: %v", err)
+	}
+	if !cached.Available.Equal(bal.Available) || !cached.Incoming.Equal(bal.Incoming) || !cached.Outgoing.Equal(bal.Outgoing) {
+		t.Fatalf("cached GetBalance = {A:%s I:%s O:%s}, want {A:%s I:%s O:%s}",
+			cached.Available, cached.Incoming, cached.Outgoing, bal.Available, bal.Incoming, bal.Outgoing)
+	}
+}
+
+func assertBalanceParity(t *testing.T, base spec.Store, fast spec.Store, kind doge.ScriptType, addr []byte, confirmations int64) {
+	t.Helper()
+
+	want, err := base.GetBalance(kind, addr, confirmations)
+	if err != nil {
+		t.Fatalf("base GetBalance: %v", err)
+	}
+	got, err := fast.GetBalance(kind, addr, confirmations)
+	if err != nil {
+		t.Fatalf("fast GetBalance: %v", err)
+	}
+	if !got.Available.Equal(want.Available) || !got.Incoming.Equal(want.Incoming) || !got.Outgoing.Equal(want.Outgoing) {
+		t.Fatalf("fast GetBalance = {A:%s I:%s O:%s}, want {A:%s I:%s O:%s}",
+			got.Available, got.Incoming, got.Outgoing, want.Available, want.Incoming, want.Outgoing)
+	}
+}
+
+func amount(value int64) spec.BigKoinu {
+	var amount spec.BigKoinu
+	_ = amount.Scan(value)
+	return amount
+}
+
+func parseBigKoinu(t *testing.T, value string) spec.BigKoinu {
+	t.Helper()
+	var amount spec.BigKoinu
+	if err := amount.Scan(value); err != nil {
+		t.Fatalf("Scan: %v", err)
+	}
+	return amount
 }
 
 func bytesOf(b byte, n int) []byte {

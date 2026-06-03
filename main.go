@@ -31,6 +31,7 @@ type Config struct {
 	corsOrigin     string
 	chainName      string
 	startingHeight int64
+	cacheBalances  bool
 }
 
 func main() {
@@ -48,6 +49,7 @@ func main() {
 	flag.StringVar(&config.corsOrigin, "cors-origin", "http://localhost:5173", "CORS allowed origin")
 	flag.StringVar(&config.chainName, "chain", "mainnet", "Chain Params (mainnet, testnet, regtest)")
 	flag.Int64Var(&config.startingHeight, "startingheight", 5830000, "Starting Height")
+	flag.BoolVar(&config.cacheBalances, "cache-balances", false, "Cache balances for faster balance lookups")
 
 	flag.Parse()
 
@@ -66,7 +68,7 @@ func main() {
 	gov := governor.New().CatchSignals().Restart(1 * time.Second)
 
 	// create database store
-	db, err := store.NewIndexStore(config.connStr, gov.GlobalContext())
+	db, err := store.NewIndexStore(config.connStr, gov.GlobalContext(), config.cacheBalances)
 	if err != nil {
 		log.Fatalf("[Indexer] database init: %v", err)
 	}

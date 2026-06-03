@@ -2,7 +2,6 @@ package spec
 
 import (
 	"github.com/dogeorg/doge"
-	"github.com/dogeorg/doge/koinu"
 	"github.com/dogeorg/storelib"
 )
 
@@ -44,8 +43,8 @@ type Store interface {
 
 // Balance
 type Balance struct {
-	Incoming  koinu.Koinu `json:"incoming"`  // takes N confirmations to become Availble
-	Available koinu.Koinu `json:"available"` // confirmed balance you can spend
-	Outgoing  koinu.Koinu `json:"outgoing"`  // takes N confirmations to become fully Spent
-	Current   koinu.Koinu `json:"current"`   // current balance: Incoming + Available
+	Incoming  BigKoinu `json:"incoming"`  // takes N confirmations to become Available
+	Available BigKoinu `json:"available"` // confirmed balance you can spend
+	Outgoing  BigKoinu `json:"outgoing"`  // takes N confirmations to become fully Spent
+	Current   BigKoinu `json:"current"`   // current balance: Incoming + Available
 }

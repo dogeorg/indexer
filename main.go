@@ -10,7 +10,6 @@ import (
 
 	"github.com/dogeorg/doge"
 	"github.com/dogeorg/dogewalker/core"
-	walkerspec "github.com/dogeorg/dogewalker/spec"
 	"github.com/dogeorg/dogewalker/walker"
 	"github.com/dogeorg/governor"
 	"github.com/dogeorg/indexer/index"
@@ -82,8 +81,7 @@ func main() {
 
 	// TipChaser
 	zmqAddr := fmt.Sprintf("tcp://%v:%v", config.zmqHost, config.zmqPort)
-	chainEvents := make(chan walkerspec.BlockchainEvent, 1)
-	zmqSvc := core.NewTipChaser(zmqAddr, chainEvents, false)
+	zmqSvc, tipChanged := core.NewTipChaser(zmqAddr)
 	gov.Add("ZMQ", zmqSvc)
 
 	// Reuse the existing Core RPC client for API sync heights.
@@ -119,7 +117,7 @@ func main() {
 		Chain:              chain,
 		LastProcessedBlock: fromHash,
 		Client:             blockchain,
-		ChainEvents:        chainEvents,
+		TipChanged:         tipChanged,
 	})
 	gov.Add("Walk", walkSvc)
 

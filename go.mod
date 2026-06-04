@@ -3,8 +3,8 @@ module github.com/dogeorg/indexer
 go 1.21
 
 require (
-	github.com/dogeorg/doge v0.1.10
-	github.com/dogeorg/dogewalker v1.0.1
+	github.com/dogeorg/doge v0.1.2
+	github.com/dogeorg/dogewalker v0.0.6
 	github.com/dogeorg/governor v1.0.5
 	github.com/dogeorg/storelib v0.0.5
 	github.com/mattn/go-sqlite3 v1.14.28

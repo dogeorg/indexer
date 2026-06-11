@@ -8,7 +8,7 @@ import (
 
 	"github.com/dogeorg/doge"
 	"github.com/dogeorg/doge/koinu"
-	dogewalkerspec "github.com/dogeorg/dogewalker/spec"
+	walkerspec "github.com/dogeorg/dogewalker/spec"
 )
 
 type fakeBlockchain struct {
@@ -18,9 +18,9 @@ type fakeBlockchain struct {
 }
 
 func (f fakeBlockchain) WaitForSync(_ context.Context) bool { return false }
-func (f fakeBlockchain) RetryMode(_ int, _ time.Duration) dogewalkerspec.Blockchain { return f }
-func (f fakeBlockchain) GetBlockHeader(_ string, _ context.Context) (dogewalkerspec.BlockHeader, error) {
-	return dogewalkerspec.BlockHeader{}, nil
+func (f fakeBlockchain) RetryMode(_ int, _ time.Duration) walkerspec.Blockchain { return f }
+func (f fakeBlockchain) GetBlockHeader(_ string, _ context.Context) (walkerspec.BlockHeader, error) {
+	return walkerspec.BlockHeader{}, nil
 }
 func (f fakeBlockchain) GetBlock(_ string, _ context.Context) (doge.Block, int, error) {
 	return doge.Block{}, 0, nil
@@ -28,17 +28,17 @@ func (f fakeBlockchain) GetBlock(_ string, _ context.Context) (doge.Block, int, 
 func (f fakeBlockchain) GetBlockHash(_ int64, _ context.Context) (string, error) { return "", nil }
 func (f fakeBlockchain) GetBestBlockHash(_ context.Context) (string, error)       { return "", nil }
 func (f fakeBlockchain) GetBlockCount(_ context.Context) (int64, error)           { return 0, nil }
-func (f fakeBlockchain) GetBlockchainInfo(_ context.Context) (dogewalkerspec.BlockchainInfo, error) {
+func (f fakeBlockchain) GetBlockchainInfo(_ context.Context) (walkerspec.BlockchainInfo, error) {
 	if f.err != nil {
-		return dogewalkerspec.BlockchainInfo{}, f.err
+		return walkerspec.BlockchainInfo{}, f.err
 	}
-	return dogewalkerspec.BlockchainInfo{Blocks: f.blocks, Headers: f.headers}, nil
+	return walkerspec.BlockchainInfo{Blocks: f.blocks, Headers: f.headers}, nil
 }
 func (f fakeBlockchain) EstimateFee(_ context.Context, _ int) (koinu.Koinu, error) {
 	return 0, nil
 }
-func (f fakeBlockchain) GetRawMempool(_ context.Context) (dogewalkerspec.RawMempool, error) {
-	return dogewalkerspec.RawMempool{}, nil
+func (f fakeBlockchain) GetRawMempool(_ context.Context) (walkerspec.RawMempool, error) {
+	return walkerspec.RawMempool{}, nil
 }
 func (f fakeBlockchain) GetRawMempoolTxList(_ context.Context) ([]string, error) { return nil, nil }
 func (f fakeBlockchain) GetRawTransaction(_ context.Context, _ string) (doge.BlockTx, error) {

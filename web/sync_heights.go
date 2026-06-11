@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	dogewalkerspec "github.com/dogeorg/dogewalker/spec"
+	walkerspec "github.com/dogeorg/dogewalker/spec"
 )
 
 const syncHeightsRefreshInterval = 30 * time.Second
@@ -18,7 +18,7 @@ type syncHeightSnapshot struct {
 }
 
 type syncHeightCache struct {
-	blockchain      dogewalkerspec.Blockchain
+	blockchain      walkerspec.Blockchain
 	refreshInterval time.Duration
 	now             func() time.Time
 
@@ -29,7 +29,7 @@ type syncHeightCache struct {
 	hasData           bool
 }
 
-func newSyncHeightCache(blockchain dogewalkerspec.Blockchain) *syncHeightCache {
+func newSyncHeightCache(blockchain walkerspec.Blockchain) *syncHeightCache {
 	if blockchain == nil {
 		return nil
 	}

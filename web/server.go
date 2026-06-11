@@ -9,13 +9,13 @@ import (
 
 	"github.com/dogeorg/doge"
 	"github.com/dogeorg/doge/koinu"
-	dogewalkerspec "github.com/dogeorg/dogewalker/spec"
+	walkerspec "github.com/dogeorg/dogewalker/spec"
 	"github.com/dogeorg/governor"
 	"github.com/dogeorg/indexer/index"
 	"github.com/dogeorg/indexer/spec"
 )
 
-func New(bind string, store spec.Store, indexer index.IndexerMonitor, blockchain dogewalkerspec.Blockchain, corsOrigin string) governor.Service {
+func New(bind string, store spec.Store, indexer index.IndexerMonitor, blockchain walkerspec.Blockchain, corsOrigin string) governor.Service {
 	mux := http.NewServeMux()
 	a := &WebAPI{
 		_store:      store,

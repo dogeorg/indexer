@@ -9,7 +9,7 @@ import (
 
 	"github.com/dogeorg/doge"
 	"github.com/dogeorg/dogewalker/core"
-	dogewalkerspec "github.com/dogeorg/dogewalker/spec"
+	walkerspec "github.com/dogeorg/dogewalker/spec"
 	"github.com/dogeorg/dogewalker/walker"
 	"github.com/dogeorg/governor"
 	"github.com/dogeorg/indexer/index"
@@ -77,7 +77,11 @@ func main() {
 
 	// TipChaser
 	zmqAddr := fmt.Sprintf("tcp://%v:%v", config.zmqHost, config.zmqPort)
-	chainEvents := make(chan dogewalkerspec.BlockchainEvent, 1)
+<<<<<<< HEAD
+	chainEvents := make(chan walkerspec.BlockchainEvent, 1)
+=======
+	chainEvents := make(chan walkerspec.BlockchainEvent, 1)
+>>>>>>> befc185047d9eabb134a3ee30ff38ecb6a6e4314
 	zmqSvc := core.NewTipChaser(zmqAddr, chainEvents, false)
 	gov.Add("ZMQ", zmqSvc)
 

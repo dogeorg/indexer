@@ -5,14 +5,11 @@ import (
 	"log"
 	"sync"
 	"time"
+
+	"github.com/dogeorg/indexer/spec"
 )
 
 const syncHeightsRefreshInterval = 30 * time.Second
-
-// coreRequestClient is the generic JSON-RPC shape exposed by dogewalker's Core client.
-type coreRequestClient interface {
-	Request(ctx context.Context, method string, params []any, result any) (int, error)
-}
 
 type syncHeightSnapshot struct {
 	CoreBlocksHeight  *int64
@@ -21,7 +18,7 @@ type syncHeightSnapshot struct {
 }
 
 type syncHeightCache struct {
-	client          coreRequestClient
+	client          spec.CoreRequestClient
 	refreshInterval time.Duration
 	now             func() time.Time
 
@@ -32,7 +29,7 @@ type syncHeightCache struct {
 	hasData           bool
 }
 
-func newSyncHeightCache(client coreRequestClient) *syncHeightCache {
+func newSyncHeightCache(client spec.CoreRequestClient) *syncHeightCache {
 	if client == nil {
 		return nil
 	}

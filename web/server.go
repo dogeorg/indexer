@@ -14,7 +14,7 @@ import (
 	"github.com/dogeorg/indexer/spec"
 )
 
-func New(bind string, store spec.Store, indexer index.IndexerMonitor, coreClient coreRequestClient, corsOrigin string) governor.Service {
+func New(bind string, store spec.Store, indexer index.IndexerMonitor, coreClient spec.CoreRequestClient, corsOrigin string) governor.Service {
 	mux := http.NewServeMux()
 	a := &WebAPI{
 		_store:      store,

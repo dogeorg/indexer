@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"errors"
 	"flag"
 	"fmt"
@@ -14,13 +13,10 @@ import (
 	"github.com/dogeorg/dogewalker/walker"
 	"github.com/dogeorg/governor"
 	"github.com/dogeorg/indexer/index"
+	"github.com/dogeorg/indexer/spec"
 	"github.com/dogeorg/indexer/store"
 	"github.com/dogeorg/indexer/web"
 )
-
-type coreRequestClient interface {
-	Request(ctx context.Context, method string, params []any, result any) (int, error)
-}
 
 const RETRY_DELAY = 5 * time.Second
 const MaxRollbackDepth = 1440 // 24 hours of blocks
@@ -87,7 +83,7 @@ func main() {
 	gov.Add("ZMQ", zmqSvc)
 
 	// Reuse the existing Core RPC client for API sync heights.
-	coreRequestClient, ok := blockchain.(coreRequestClient)
+	coreRequestClient, ok := blockchain.(spec.CoreRequestClient)
 	if !ok {
 		log.Printf("[Indexer] Core client does not expose request access; sync heights unavailable")
 	}

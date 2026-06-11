@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/dogeorg/indexer/spec"
+	dogewalkerspec "github.com/dogeorg/dogewalker/spec"
 )
 
 const syncHeightsRefreshInterval = 30 * time.Second
@@ -18,7 +18,7 @@ type syncHeightSnapshot struct {
 }
 
 type syncHeightCache struct {
-	client          spec.CoreRequestClient
+	blockchain      dogewalkerspec.Blockchain
 	refreshInterval time.Duration
 	now             func() time.Time
 
@@ -29,12 +29,12 @@ type syncHeightCache struct {
 	hasData           bool
 }
 
-func newSyncHeightCache(client spec.CoreRequestClient) *syncHeightCache {
-	if client == nil {
+func newSyncHeightCache(blockchain dogewalkerspec.Blockchain) *syncHeightCache {
+	if blockchain == nil {
 		return nil
 	}
 	return &syncHeightCache{
-		client:          client,
+		blockchain:      blockchain,
 		refreshInterval: syncHeightsRefreshInterval,
 		now:             time.Now,
 	}
@@ -87,18 +87,15 @@ func (c *syncHeightCache) refresh(ctx context.Context) {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
-	var result struct {
-		Blocks  int64 `json:"blocks"`
-		Headers int64 `json:"headers"`
-	}
-	if _, err := c.client.Request(ctx, "getblockchaininfo", []any{}, &result); err != nil {
+	info, err := c.blockchain.GetBlockchainInfo(ctx)
+	if err != nil {
 		log.Printf("[Indexer] sync heights refresh failed: getblockchaininfo: %v", err)
 		return
 	}
 
 	c.mu.Lock()
-	c.coreBlocksHeight = result.Blocks
-	c.coreHeadersHeight = result.Headers
+	c.coreBlocksHeight = info.Blocks
+	c.coreHeadersHeight = info.Headers
 	c.updatedAt = c.now()
 	c.hasData = true
 	c.mu.Unlock()

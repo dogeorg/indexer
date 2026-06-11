@@ -9,17 +9,18 @@ import (
 
 	"github.com/dogeorg/doge"
 	"github.com/dogeorg/doge/koinu"
+	dogewalkerspec "github.com/dogeorg/dogewalker/spec"
 	"github.com/dogeorg/governor"
 	"github.com/dogeorg/indexer/index"
 	"github.com/dogeorg/indexer/spec"
 )
 
-func New(bind string, store spec.Store, indexer index.IndexerMonitor, coreClient spec.CoreRequestClient, corsOrigin string) governor.Service {
+func New(bind string, store spec.Store, indexer index.IndexerMonitor, blockchain dogewalkerspec.Blockchain, corsOrigin string) governor.Service {
 	mux := http.NewServeMux()
 	a := &WebAPI{
 		_store:      store,
 		indexer:     indexer,
-		syncHeights: newSyncHeightCache(coreClient),
+		syncHeights: newSyncHeightCache(blockchain),
 		corsOrigin:  corsOrigin,
 		srv: http.Server{
 			Addr:    bind,

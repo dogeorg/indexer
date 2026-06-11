@@ -9,11 +9,10 @@ import (
 
 	"github.com/dogeorg/doge"
 	"github.com/dogeorg/dogewalker/core"
-	walkerspec "github.com/dogeorg/dogewalker/spec"
+	dogewalkerspec "github.com/dogeorg/dogewalker/spec"
 	"github.com/dogeorg/dogewalker/walker"
 	"github.com/dogeorg/governor"
 	"github.com/dogeorg/indexer/index"
-	"github.com/dogeorg/indexer/spec"
 	"github.com/dogeorg/indexer/store"
 	"github.com/dogeorg/indexer/web"
 )
@@ -78,15 +77,9 @@ func main() {
 
 	// TipChaser
 	zmqAddr := fmt.Sprintf("tcp://%v:%v", config.zmqHost, config.zmqPort)
-	chainEvents := make(chan walkerspec.BlockchainEvent, 1)
+	chainEvents := make(chan dogewalkerspec.BlockchainEvent, 1)
 	zmqSvc := core.NewTipChaser(zmqAddr, chainEvents, false)
 	gov.Add("ZMQ", zmqSvc)
-
-	// Reuse the existing Core RPC client for API sync heights.
-	coreRequestClient, ok := blockchain.(spec.CoreRequestClient)
-	if !ok {
-		log.Printf("[Indexer] Core client does not expose request access; sync heights unavailable")
-	}
 
 	// Get the resume-point.
 	var fromBlock []byte
@@ -124,7 +117,7 @@ func main() {
 	gov.Add("Index", indexer)
 
 	// REST API.
-	gov.Add("API", web.New(config.bindAPI, db, indexer, coreRequestClient, config.corsOrigin))
+	gov.Add("API", web.New(config.bindAPI, db, indexer, blockchain, config.corsOrigin))
 
 	// run services until interrupted.
 	gov.Start().WaitForShutdown()

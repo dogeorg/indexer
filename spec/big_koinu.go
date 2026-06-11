@@ -82,15 +82,84 @@ func (a *BigKoinu) setString(value string) error {
 		return nil
 	}
 
+	original := value
+	sign := 1
+	switch {
+	case strings.HasPrefix(value, "-"):
+		sign = -1
+		value = value[1:]
+	case strings.HasPrefix(value, "+"):
+		value = value[1:]
+	}
+
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return fmt.Errorf("invalid big koinu %q", original)
+	}
+
 	if before, after, found := strings.Cut(value, "."); found {
-		if strings.Trim(after, "0") != "" {
-			return fmt.Errorf("big koinu must be an integer, got %q", value)
+		if strings.Trim(after, "0") == "" {
+			// PostgreSQL NUMERIC values may include a trailing .000...
+			if before == "" || before == "0" {
+				a.value.SetInt64(0)
+				return nil
+			}
+			if _, ok := a.value.SetString(before, 10); !ok {
+				return fmt.Errorf("invalid big koinu %q", original)
+			}
+			if sign < 0 {
+				a.value.Neg(&a.value)
+			}
+			return nil
 		}
-		value = before
+		return a.setDogeString(before, after, sign, original)
 	}
 
 	if _, ok := a.value.SetString(value, 10); !ok {
-		return fmt.Errorf("invalid big koinu %q", value)
+		return fmt.Errorf("invalid big koinu %q", original)
 	}
+	if sign < 0 {
+		a.value.Neg(&a.value)
+	}
+	return nil
+}
+
+func (a *BigKoinu) setDogeString(whole, frac string, sign int, original string) error {
+	if len(frac) > 8 {
+		return fmt.Errorf("big koinu has at most 8 decimal places, got %q", original)
+	}
+	for _, r := range whole {
+		if r < '0' || r > '9' {
+			return fmt.Errorf("invalid big koinu %q", original)
+		}
+	}
+	for _, r := range frac {
+		if r < '0' || r > '9' {
+			return fmt.Errorf("invalid big koinu %q", original)
+		}
+	}
+
+	if whole == "" {
+		whole = "0"
+	}
+
+	var wholePart big.Int
+	if _, ok := wholePart.SetString(whole, 10); !ok {
+		return fmt.Errorf("invalid big koinu %q", original)
+	}
+
+	fracPadded := frac + strings.Repeat("0", 8-len(frac))
+	var fracPart big.Int
+	if _, ok := fracPart.SetString(fracPadded, 10); !ok {
+		return fmt.Errorf("invalid big koinu %q", original)
+	}
+
+	var koinu big.Int
+	koinu.Mul(&wholePart, koinuPerDoge)
+	koinu.Add(&koinu, &fracPart)
+	if sign < 0 {
+		koinu.Neg(&koinu)
+	}
+	a.value.Set(&koinu)
 	return nil
 }

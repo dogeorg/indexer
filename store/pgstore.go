@@ -37,15 +37,26 @@ func NewIndexStore(fileName string, ctx context.Context, cacheBalances bool) (St
 		return store, err
 	}
 	if store.cacheBalances {
-		err = store.Transact(func(tx StoreTx) error {
-			indexStore, ok := tx.(*IndexStore)
-			if !ok {
-				return fmt.Errorf("NewIndexStore: unexpected transaction type %T", tx)
-			}
-			return indexStore.ensureBalancesReady()
-		})
+		err = store.withDBTxn(store.ensureBalancesReady)
 	}
 	return store, err
+}
+
+func (s *IndexStore) withDBTxn(fn func() error) error {
+	tx, err := s.RawDB.Begin()
+	if err != nil {
+		return s.DBErr(err, "withDBTxn: begin")
+	}
+	defer tx.Rollback()
+
+	prev := s.Txn
+	s.Txn = tx
+	defer func() { s.Txn = prev }()
+
+	if err := fn(); err != nil {
+		return err
+	}
+	return s.DBErr(tx.Commit(), "withDBTxn: commit")
 }
 
 // Clone makes a copy of the store implementation (because storelib can't do this part)

@@ -107,7 +107,6 @@ func seededSyncHeightCache(snapshot syncHeightSnapshot) *syncHeightCache {
 		updatedAt:         *snapshot.CoreSyncUpdatedAt,
 		hasData:           true,
 		now:               func() time.Time { return *snapshot.CoreSyncUpdatedAt },
-		staleAfter:        syncHeightsStaleAfter,
 	}
 }
 

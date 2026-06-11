@@ -59,21 +59,6 @@ func TestSyncHeightCacheRefreshStoresFreshData(t *testing.T) {
 	}
 }
 
-func TestSyncHeightCacheSnapshotHidesStaleData(t *testing.T) {
-	now := time.Date(2026, time.June, 1, 12, 3, 0, 0, time.UTC)
-	cache := newSyncHeightCache(fakeCoreRequestClient{})
-	cache.now = func() time.Time { return now }
-	cache.coreBlocksHeight = 10
-	cache.coreHeadersHeight = 12
-	cache.updatedAt = now.Add(-3 * time.Minute)
-	cache.hasData = true
-
-	snapshot := cache.snapshot()
-	if snapshot.CoreBlocksHeight != nil || snapshot.CoreHeadersHeight != nil || snapshot.CoreSyncUpdatedAt != nil {
-		t.Fatalf("expected stale snapshot to be hidden, got %+v", snapshot)
-	}
-}
-
 func TestSyncHeightCacheRefreshKeepsLastSuccessfulDataOnFailure(t *testing.T) {
 	now := time.Date(2026, time.June, 1, 12, 0, 0, 0, time.UTC)
 	cache := newSyncHeightCache(fakeCoreRequestClient{err: errors.New("boom")})

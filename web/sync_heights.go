@@ -8,7 +8,6 @@ import (
 )
 
 const syncHeightsRefreshInterval = 30 * time.Second
-const syncHeightsStaleAfter = 2 * time.Minute
 
 // coreRequestClient is the generic JSON-RPC shape exposed by dogewalker's Core client.
 type coreRequestClient interface {
@@ -24,7 +23,6 @@ type syncHeightSnapshot struct {
 type syncHeightCache struct {
 	client          coreRequestClient
 	refreshInterval time.Duration
-	staleAfter      time.Duration
 	now             func() time.Time
 
 	mu                sync.RWMutex
@@ -41,7 +39,6 @@ func newSyncHeightCache(client coreRequestClient) *syncHeightCache {
 	return &syncHeightCache{
 		client:          client,
 		refreshInterval: syncHeightsRefreshInterval,
-		staleAfter:      syncHeightsStaleAfter,
 		now:             time.Now,
 	}
 }
@@ -75,9 +72,6 @@ func (c *syncHeightCache) snapshot() syncHeightSnapshot {
 	defer c.mu.RUnlock()
 
 	if !c.hasData {
-		return syncHeightSnapshot{}
-	}
-	if c.staleAfter > 0 && c.now().Sub(c.updatedAt) > c.staleAfter {
 		return syncHeightSnapshot{}
 	}
 

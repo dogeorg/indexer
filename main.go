@@ -77,11 +77,7 @@ func main() {
 
 	// TipChaser
 	zmqAddr := fmt.Sprintf("tcp://%v:%v", config.zmqHost, config.zmqPort)
-<<<<<<< HEAD
 	chainEvents := make(chan walkerspec.BlockchainEvent, 1)
-=======
-	chainEvents := make(chan walkerspec.BlockchainEvent, 1)
->>>>>>> befc185047d9eabb134a3ee30ff38ecb6a6e4314
 	zmqSvc := core.NewTipChaser(zmqAddr, chainEvents, false)
 	gov.Add("ZMQ", zmqSvc)
 

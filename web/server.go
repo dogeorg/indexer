@@ -74,9 +74,26 @@ func (a *WebAPI) healthCheck(w http.ResponseWriter, r *http.Request) {
 	_, err := a.store.GetResumePoint()
 	if err != nil {
 		sendError(w, 500, "error", err.Error(), "GET", a.corsOrigin)
-	} else {
-		sendJson(w, map[string]interface{}{"ok": true}, "GET", a.corsOrigin)
+		return
 	}
+
+	height, err := a.store.GetCurrentHeight()
+	if err != nil {
+		sendError(w, 500, "error", err.Error(), "GET", a.corsOrigin)
+		return
+	}
+
+	response := HealthResponse{
+		OK:     true,
+		Height: height,
+	}
+	if a.syncHeights != nil {
+		snapshot := a.syncHeights.snapshot()
+		response.CoreBlocksHeight = snapshot.CoreBlocksHeight
+		response.CoreHeadersHeight = snapshot.CoreHeadersHeight
+		response.CoreSyncUpdatedAt = snapshot.CoreSyncUpdatedAt
+	}
+	sendJson(w, response, "GET", a.corsOrigin)
 }
 
 func (a *WebAPI) getBalance(w http.ResponseWriter, r *http.Request) {
@@ -189,6 +206,14 @@ func (a *WebAPI) getRecentBlocks(w http.ResponseWriter, r *http.Request) {
 
 type UTXOResponse struct {
 	UTXO []UTXOItem `json:"utxo"`
+}
+
+type HealthResponse struct {
+	OK                bool       `json:"ok"`
+	Height            int64      `json:"height"`
+	CoreBlocksHeight  *int64     `json:"core_blocks_height,omitempty"`
+	CoreHeadersHeight *int64     `json:"core_headers_height,omitempty"`
+	CoreSyncUpdatedAt *time.Time `json:"core_sync_updated_at,omitempty"`
 }
 
 type HeightResponse struct {

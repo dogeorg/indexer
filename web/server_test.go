@@ -218,17 +218,37 @@ func TestUtxoKindFromVersionByte(t *testing.T) {
 }
 
 func TestHealthCheck(t *testing.T) {
+	blocksHeight := int64(200000)
+	headersHeight := int64(200100)
+	syncUpdatedAt := time.Date(2026, time.June, 1, 4, 0, 0, 0, time.UTC)
+
 	tests := []struct {
 		name           string
+		height         int64
+		snapshot       syncHeightSnapshot
 		resumeErr      error
+		heightErr      error
 		expectedStatus int
 		expectedBody   string
 	}{
 		{
 			name:           "Healthy",
+			height:         123456,
 			resumeErr:      nil,
+			heightErr:      nil,
 			expectedStatus: 200,
-			expectedBody:   `{"ok":true}`,
+			expectedBody:   `{"ok":true,"height":123456}`,
+		},
+		{
+			name:      "Healthy with sync heights",
+			height:    123456,
+			snapshot: syncHeightSnapshot{
+				CoreBlocksHeight:  &blocksHeight,
+				CoreHeadersHeight: &headersHeight,
+				CoreSyncUpdatedAt: &syncUpdatedAt,
+			},
+			expectedStatus: 200,
+			expectedBody:   `{"ok":true,"height":123456,"core_blocks_height":200000,"core_headers_height":200100,"core_sync_updated_at":"2026-06-01T04:00:00Z"}`,
 		},
 		{
 			name:           "Unhealthy",
@@ -240,11 +260,16 @@ func TestHealthCheck(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockStore := &MockStore{resumeErr: tt.resumeErr}
+			mockStore := &MockStore{
+				resumeErr:     tt.resumeErr,
+				heightErr:     tt.heightErr,
+				currentHeight: tt.height,
+			}
 			mockIndexer := &MockIndexer{}
 			server := New(":0", mockStore, mockIndexer, nil, "")
 			webAPI := server.(*WebAPI)
 			webAPI.store = mockStore
+			webAPI.syncHeights = seededSyncHeightCache(tt.snapshot)
 
 			req := httptest.NewRequest("GET", "/health", nil)
 			w := httptest.NewRecorder()

@@ -9,17 +9,19 @@ import (
 
 	"github.com/dogeorg/doge"
 	"github.com/dogeorg/doge/koinu"
+	walkerspec "github.com/dogeorg/dogewalker/spec"
 	"github.com/dogeorg/governor"
 	"github.com/dogeorg/indexer/index"
 	"github.com/dogeorg/indexer/spec"
 )
 
-func New(bind string, store spec.Store, indexer index.IndexerMonitor, corsOrigin string) governor.Service {
+func New(bind string, store spec.Store, indexer index.IndexerMonitor, blockchain walkerspec.Blockchain, corsOrigin string) governor.Service {
 	mux := http.NewServeMux()
 	a := &WebAPI{
-		_store:     store,
-		indexer:    indexer,
-		corsOrigin: corsOrigin,
+		_store:      store,
+		indexer:     indexer,
+		syncHeights: newSyncHeightCache(blockchain),
+		corsOrigin:  corsOrigin,
 		srv: http.Server{
 			Addr:    bind,
 			Handler: mux,
@@ -37,11 +39,12 @@ func New(bind string, store spec.Store, indexer index.IndexerMonitor, corsOrigin
 
 type WebAPI struct {
 	governor.ServiceCtx
-	_store     spec.Store
-	store      spec.Store
-	indexer    index.IndexerMonitor
-	corsOrigin string
-	srv        http.Server
+	_store      spec.Store
+	store       spec.Store
+	indexer     index.IndexerMonitor
+	syncHeights *syncHeightCache
+	corsOrigin  string
+	srv         http.Server
 }
 
 // called on any Goroutine
@@ -58,6 +61,9 @@ func (a *WebAPI) Stop() {
 // goroutine
 func (a *WebAPI) Run() {
 	a.store = a._store.WithCtx(a.Context) // Service Context is first available here
+	if a.syncHeights != nil {
+		go a.syncHeights.run(a.Context)
+	}
 	log.Printf("HTTP server listening on: %v\n", a.srv.Addr)
 	if err := a.srv.ListenAndServe(); err != http.ErrServerClosed { // blocking call
 		log.Printf("HTTP server: %v\n", err)
@@ -154,7 +160,16 @@ func (a *WebAPI) getHeight(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			sendError(w, 500, "error", err.Error(), options, a.corsOrigin)
 		} else {
-			sendJson(w, map[string]interface{}{"height": height}, options, a.corsOrigin)
+			response := HeightResponse{
+				Height: height,
+			}
+			if a.syncHeights != nil {
+				snapshot := a.syncHeights.snapshot()
+				response.CoreBlocksHeight = snapshot.CoreBlocksHeight
+				response.CoreHeadersHeight = snapshot.CoreHeadersHeight
+				response.CoreSyncUpdatedAt = snapshot.CoreSyncUpdatedAt
+			}
+			sendJson(w, response, options, a.corsOrigin)
 		}
 	case http.MethodOptions:
 		sendOptions(w, r, options, a.corsOrigin)
@@ -175,6 +190,14 @@ func (a *WebAPI) getRecentBlocks(w http.ResponseWriter, r *http.Request) {
 type UTXOResponse struct {
 	UTXO []UTXOItem `json:"utxo"`
 }
+
+type HeightResponse struct {
+	Height            int64      `json:"height"`
+	CoreBlocksHeight  *int64     `json:"core_blocks_height,omitempty"`
+	CoreHeadersHeight *int64     `json:"core_headers_height,omitempty"`
+	CoreSyncUpdatedAt *time.Time `json:"core_sync_updated_at,omitempty"`
+}
+
 type UTXOItem struct {
 	TxID   string      `json:"tx"`     // hex-encoded transaction ID (byte-reversed)
 	VOut   uint32      `json:"vout"`   // transaction output number

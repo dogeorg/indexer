@@ -102,6 +102,19 @@ func (m *MockStore) Transact(fn func(spec.StoreTx) error) error {
 	return fn(m)
 }
 
+func seededSyncHeightCache(snapshot syncHeightSnapshot) *syncHeightCache {
+	if snapshot.CoreBlocksHeight == nil || snapshot.CoreHeadersHeight == nil || snapshot.CoreSyncUpdatedAt == nil {
+		return nil
+	}
+	return &syncHeightCache{
+		coreBlocksHeight:  *snapshot.CoreBlocksHeight,
+		coreHeadersHeight: *snapshot.CoreHeadersHeight,
+		updatedAt:         *snapshot.CoreSyncUpdatedAt,
+		hasData:           true,
+		now:               func() time.Time { return *snapshot.CoreSyncUpdatedAt },
+	}
+}
+
 func TestUtxoKindFromVersionByte(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -234,7 +247,7 @@ func TestHealthCheck(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mockStore := &MockStore{resumeErr: tt.resumeErr}
 			mockIndexer := &MockIndexer{}
-			server := New(":0", mockStore, mockIndexer, "")
+			server := New(":0", mockStore, mockIndexer, nil, "")
 			webAPI := server.(*WebAPI)
 			webAPI.store = mockStore
 
@@ -255,9 +268,14 @@ func TestHealthCheck(t *testing.T) {
 }
 
 func TestGetHeight(t *testing.T) {
+	blocksHeight := int64(200000)
+	headersHeight := int64(200100)
+	syncUpdatedAt := time.Date(2026, time.June, 1, 4, 0, 0, 0, time.UTC)
+
 	tests := []struct {
 		name           string
 		height         int64
+		snapshot       syncHeightSnapshot
 		heightErr      error
 		expectedStatus int
 		expectedBody   string
@@ -277,6 +295,18 @@ func TestGetHeight(t *testing.T) {
 			expectedBody:   `{"height":0}`,
 		},
 		{
+			name:   "Includes cached sync heights",
+			height: 123456,
+			snapshot: syncHeightSnapshot{
+				CoreBlocksHeight:  &blocksHeight,
+				CoreHeadersHeight: &headersHeight,
+				CoreSyncUpdatedAt: &syncUpdatedAt,
+			},
+			heightErr:      nil,
+			expectedStatus: 200,
+			expectedBody:   `{"height":123456,"core_blocks_height":200000,"core_headers_height":200100,"core_sync_updated_at":"2026-06-01T04:00:00Z"}`,
+		},
+		{
 			name:           "Database error",
 			height:         0,
 			heightErr:      fmt.Errorf("connection failed"),
@@ -292,9 +322,10 @@ func TestGetHeight(t *testing.T) {
 				heightErr:     tt.heightErr,
 			}
 			mockIndexer := &MockIndexer{}
-			server := New(":0", mockStore, mockIndexer, "")
+			server := New(":0", mockStore, mockIndexer, nil, "")
 			webAPI := server.(*WebAPI)
 			webAPI.store = mockStore
+			webAPI.syncHeights = seededSyncHeightCache(tt.snapshot)
 
 			req := httptest.NewRequest("GET", "/height", nil)
 			w := httptest.NewRecorder()
@@ -315,7 +346,7 @@ func TestGetHeight(t *testing.T) {
 func TestGetHeightOptions(t *testing.T) {
 	mockStore := &MockStore{currentHeight: 123456}
 	mockIndexer := &MockIndexer{}
-	server := New(":0", mockStore, mockIndexer, "")
+	server := New(":0", mockStore, mockIndexer, nil, "")
 	webAPI := server.(*WebAPI)
 	webAPI.store = mockStore
 
@@ -404,7 +435,7 @@ func TestGetBalance(t *testing.T) {
 				balanceErr: tt.balanceErr,
 			}
 			mockIndexer := &MockIndexer{}
-			server := New(":0", mockStore, mockIndexer, "")
+			server := New(":0", mockStore, mockIndexer, nil, "")
 			webAPI := server.(*WebAPI)
 			webAPI.store = mockStore
 
@@ -507,7 +538,7 @@ func TestGetUtxo(t *testing.T) {
 				utxoErr: tt.utxoErr,
 			}
 			mockIndexer := &MockIndexer{}
-			server := New(":0", mockStore, mockIndexer, "")
+			server := New(":0", mockStore, mockIndexer, nil, "")
 			webAPI := server.(*WebAPI)
 			webAPI.store = mockStore
 
@@ -538,7 +569,7 @@ func TestGetUtxo(t *testing.T) {
 func TestHeightEndpointIntegration(t *testing.T) {
 	mockStore := &MockStore{currentHeight: 123456}
 	mockIndexer := &MockIndexer{}
-	server := New(":0", mockStore, mockIndexer, "")
+	server := New(":0", mockStore, mockIndexer, nil, "")
 	webAPI := server.(*WebAPI)
 	webAPI.store = mockStore
 
@@ -581,7 +612,7 @@ func TestGetRecentBlocks(t *testing.T) {
 		},
 	}
 
-	server := New(":0", mockStore, mockIndexer, "")
+	server := New(":0", mockStore, mockIndexer, nil, "")
 	webAPI := server.(*WebAPI)
 	webAPI.store = mockStore
 
@@ -610,7 +641,7 @@ func TestGetRecentBlocksOptions(t *testing.T) {
 	mockStore := &MockStore{}
 	mockIndexer := &MockIndexer{}
 
-	server := New(":0", mockStore, mockIndexer, "")
+	server := New(":0", mockStore, mockIndexer, nil, "")
 	webAPI := server.(*WebAPI)
 	webAPI.store = mockStore
 

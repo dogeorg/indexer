@@ -94,10 +94,10 @@ func (a *WebAPI) getBalance(w http.ResponseWriter, r *http.Request) {
 		kind := utxoKindFromVersionByte(pubkeyHash[0])
 		hash := pubkeyHash[1:]
 		bal, err := a.store.GetBalance(kind, hash, 6)
-		bal.Current = bal.Available + bal.Incoming
 		if err != nil {
 			sendError(w, 500, "error", err.Error(), options, a.corsOrigin)
 		} else {
+			bal.Current = bal.Available.Add(bal.Incoming)
 			sendJson(w, bal, options, a.corsOrigin)
 		}
 	case http.MethodOptions:

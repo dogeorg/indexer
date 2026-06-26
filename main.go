@@ -119,7 +119,7 @@ func main() {
 	gov.Add("Index", indexer)
 
 	// REST API.
-	gov.Add("API", web.New(config.bindAPI, db, indexer, config.corsOrigin))
+	gov.Add("API", web.New(config.bindAPI, db, indexer, blockchain, config.corsOrigin))
 
 	// run services until interrupted.
 	gov.Start().WaitForShutdown()
